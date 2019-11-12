@@ -92,10 +92,10 @@ func TestDemoInspecting(t *testing.T) {
 	)
 }
 
-// TestDemoReady tests that a host with the right name reports
-// that it is ready to be provisioned
-func TestDemoReady(t *testing.T) {
-	host := newDefaultNamedHost(demo.ReadyHost, t)
+// TestDemoAvailable tests that a host with the right name reports
+// that it is available to be provisioned
+func TestDemoAvailable(t *testing.T) {
+	host := newDefaultNamedHost(demo.AvailableHost, t)
 	r := newDemoReconciler(host)
 
 	tryReconcile(t, r, host,
@@ -105,7 +105,7 @@ func TestDemoReady(t *testing.T) {
 				host.Status.Provisioning.State,
 				host.Status.ErrorMessage,
 			)
-			return host.Status.Provisioning.State == metal3v1alpha1.StateReady
+			return host.Status.Provisioning.State == metal3v1alpha1.StateAvailable
 		},
 	)
 }

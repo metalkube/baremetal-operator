@@ -81,7 +81,7 @@ const (
 	// against known hardware profiles
 	StateMatchProfile ProvisioningState = "match profile"
 
-	// StateReady means the host can be consumed
+	//StateReady is deprecated, this is for handling exisitng hosts in ready state
 	StateReady ProvisioningState = "ready"
 
 	// StateAvailable means the host can be consumed

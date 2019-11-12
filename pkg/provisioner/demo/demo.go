@@ -24,8 +24,8 @@ const (
 	// registered.
 	RegisteringHost string = "demo-registering"
 
-	// ReadyHost is a host that is ready to be used.
-	ReadyHost string = "demo-ready"
+	// AvailableHost is a host that is available to be used.
+	AvailableHost string = "demo-available"
 
 	// InspectingHost is a host that is having its hardware scanned.
 	InspectingHost string = "demo-inspecting"

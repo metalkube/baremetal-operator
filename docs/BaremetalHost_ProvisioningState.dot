@@ -20,15 +20,15 @@ digraph BaremetalHost {
 
     ExternallyProvisioned -> Inspecting [label="!externallyProvisioned && NeedsHardwareInspection()"]
     ExternallyProvisioned -> MatchProfile [label="!externallyProvisioned && NeedsHardwareProfile()"]
-    ExternallyProvisioned -> Ready [label="!externallyProvisioned"]
-    Ready -> ExternallyProvisioned [label="externallyProvisioned"]
+    ExternallyProvisioned -> Available [label="!externallyProvisioned"]
+    Available -> ExternallyProvisioned [label="externallyProvisioned"]
 
     Inspecting -> MatchProfile [label="done"]
     Inspecting -> Deleting3 [label="!DeletionTimestamp.IsZero()"]
 
     Deleting3 [shape=point]
 
-    MatchProfile -> Ready [label="done"]
+    MatchProfile -> Available [label="done"]
     MatchProfile -> Deleted4 [label="!DeletionTimestamp.IsZero()"]
 
     Deleting4 [shape=point]
@@ -39,9 +39,9 @@ digraph BaremetalHost {
 
     Deleting5 [shape=point]
 
-    Ready [shape=doublecircle]
-    Ready -> Provisioning [label="NeedsProvisioning()"]
-    Ready -> Deleting6 [label="!DeletionTimestamp.IsZero()"]
+    Available [shape=doublecircle]
+    Available -> Provisioning [label="NeedsProvisioning()"]
+    Available -> Deleting6 [label="!DeletionTimestamp.IsZero()"]
 
     Deleting6 [shape=point]
 
@@ -61,7 +61,7 @@ digraph BaremetalHost {
     ExternallyProvisioned -> Deleting [label="!DeletionTimestamp.IsZero()"]
 
     Deprovisioning -> Provisioning [label="NeedsProvisioning()"]
-    Deprovisioning -> Ready [label="!NeedsProvisioning()"]
+    Deprovisioning -> Available [label="!NeedsProvisioning()"]
     Deprovisioning -> Deleting [label="!DeletionTimestamp.IsZero()"]
 
     Deleting [shape=doublecircle]

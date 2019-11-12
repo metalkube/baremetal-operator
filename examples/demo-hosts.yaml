@@ -96,7 +96,7 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: demo-ready-secret
+  name: demo-available-secret
 type: Opaque
 data:
   username: YWRtaW4=
@@ -105,14 +105,14 @@ data:
 apiVersion: metal3.io/v1alpha1
 kind: BareMetalHost
 metadata:
-  name: demo-ready
+  name: demo-available
   labels:
     metal3demo: ""
 spec:
   online: true
   bmc:
     address: ipmi://192.168.122.3:6233
-    credentialsName: demo-ready-secret
+    credentialsName: demo-available-secret
 
 ---
 apiVersion: v1

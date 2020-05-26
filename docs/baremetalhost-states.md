@@ -41,9 +41,9 @@ will stay in the Inspecting state until this process is completed.
 A host in the Match Profile state is being matched against a hardware
 profile.
 
-## Ready
+## Available
 
-A host in the Ready state is available to be provisioned.
+A host in the Available state is available to be provisioned.
 
 ## Provisioning
 

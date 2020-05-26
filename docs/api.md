@@ -179,7 +179,7 @@ details, etc.
     * *registering* -- The host's BMC details are being checked.
     * *match profile* -- The discovered hardware details on the host
       are being compared against known profiles.
-    * *ready* -- The host is available to be consumed.
+    * *available* -- The host is available to be consumed.
     * *provisioning* -- An image is being written to the host's disk(s).
     * *provisioning error* -- The image could not be written to the host.
     * *provisioned* -- An image has been completely written to the host's

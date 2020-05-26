@@ -922,7 +922,7 @@ func TestExternallyProvisionedTransitions(t *testing.T) {
 		host.Spec.Online = true
 		r := newTestReconciler(host)
 
-		waitForProvisioningState(t, r, host, metal3v1alpha1.StateReady)
+		waitForProvisioningState(t, r, host, metal3v1alpha1.StateAvailable)
 
 		host.Spec.ExternallyProvisioned = true
 		err := r.client.Update(goctx.TODO(), host)

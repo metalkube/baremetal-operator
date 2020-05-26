@@ -87,7 +87,7 @@ const (
 	// against known hardware profiles
 	StateMatchProfile ProvisioningState = "match profile"
 
-	// StateReady means the host can be consumed
+        // StateReady means the host can be consumed
 	StateReady ProvisioningState = "ready"
 
 	// StateAvailable means the host can be consumed

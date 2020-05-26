@@ -754,13 +754,13 @@ func (r *ReconcileBareMetalHost) actionManageSteadyState(prov provisioner.Provis
 	return r.manageHostPower(prov, info)
 }
 
-// A host reaching this action handler should be ready -- a state that
+// A host reaching this action handler should be available -- a state that
 // it will stay in until the user takes further action. It has been
 // registered with the provisioner once, so we use
 // ValidateManagementAccess() to ensure that is still true. We don't
 // use Adopt() because we don't want Ironic to treat the host as
 // having been provisioned. Then we monitor its power status.
-func (r *ReconcileBareMetalHost) actionManageReady(prov provisioner.Provisioner, info *reconcileInfo) actionResult {
+func (r *ReconcileBareMetalHost) actionManageAvailable(prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 
 	// We always pass false for credentialsChanged because if they had
 	// changed we would have ended up in actionRegister() instead of

@@ -1612,7 +1612,7 @@ func (p *ironicProvisioner) Deprovision(force bool) (result provisioner.Result, 
 // Delete removes the host from the provisioning system. It may be
 // called multiple times, and should return true for its dirty flag
 // until the deprovisioning operation is completed.
-func (p *ironicProvisioner) Delete() (result provisioner.Result, err error) {
+func (p *ironicProvisioner) Delete(retryPowerOff bool) (result provisioner.Result, err error) {
 
 	ironicNode, err := p.findExistingHost()
 	if err != nil {
@@ -1653,6 +1653,19 @@ func (p *ironicProvisioner) Delete() (result provisioner.Result, err error) {
 		// Nova.
 		p.log.Info("setting host maintenance flag to force image delete")
 		return p.setMaintenanceFlag(ironicNode, true)
+	}
+
+	if ironicNode.PowerState == powerOn && retryPowerOff {
+		p.log.Info("host ready to be powered off")
+		_, err := p.hardPowerOff()
+		var hostErr *HostLockedError
+		if errors.As(err, &hostErr) {
+			p.log.Info("could not power off host, busy")
+			return retryAfterDelay(powerRequeueDelay)
+		} else {
+			p.log.Info("encountered transient error %s while powering off host", err)
+			return operationFailed("failed to power off host")
+		}
 	}
 
 	p.log.Info("host ready to be removed")
@@ -1702,7 +1715,7 @@ func (p *ironicProvisioner) changePower(ironicNode *nodes.Node, target nodes.Tar
 	case gophercloud.ErrDefault409:
 		p.log.Info("host is locked, trying again after delay", "delay", powerRequeueDelay)
 		result, _ = retryAfterDelay(powerRequeueDelay)
-		return result, HostLockedError{Address: p.host.Spec.BMC.Address}
+		return result, &HostLockedError{Address: p.host.Spec.BMC.Address}
 	case gophercloud.ErrDefault400:
 		// Error 400 Bad Request means target power state is not supported by vendor driver
 		p.log.Info("power change error", "message", changeResult.Err)
@@ -1750,21 +1763,36 @@ func (p *ironicProvisioner) PowerOn() (result provisioner.Result, err error) {
 func (p *ironicProvisioner) PowerOff(rebootMode metal3v1alpha1.RebootMode) (result provisioner.Result, err error) {
 	p.log.Info(fmt.Sprintf("ensuring host is powered off (mode: %s)", rebootMode))
 
-	if rebootMode == metal3v1alpha1.RebootModeHard {
-		result, err = p.hardPowerOff()
-	} else {
-		result, err = p.softPowerOff()
+	softPowerOffSuccessful := true
+
+	if rebootMode != metal3v1alpha1.RebootModeHard {
+		if result, err := p.softPowerOff(); err == nil {
+			return result, nil
+		} else {
+			switch err.(type) {
+			// In case of soft power off is unsupported or has failed,
+			// we activate hard power off.
+			case SoftPowerOffUnsupportedError, SoftPowerOffFailed:
+				// Try to hard power off now
+				softPowerOffSuccessful = false
+			case HostLockedError:
+				return retryAfterDelay(powerRequeueDelay)
+			default:
+				return transientError(err)
+			}
+		}
 	}
-	if err != nil {
-		switch err.(type) {
-		// In case of soft power off is unsupported or has failed,
-		// we activate hard power off.
-		case SoftPowerOffUnsupportedError, SoftPowerOffFailed:
-			return p.hardPowerOff()
-		case HostLockedError:
-			return retryAfterDelay(powerRequeueDelay)
-		default:
-			return transientError(err)
+
+	if rebootMode == metal3v1alpha1.RebootModeHard || !softPowerOffSuccessful {
+		result, err = p.hardPowerOff()
+		if err != nil {
+			var hostErr *HostLockedError
+			if errors.As(err, &hostErr) {
+				p.log.Info("could not power off host, busy")
+				return retryAfterDelay(powerRequeueDelay)
+			} else {
+				return transientError(err)
+			}
 		}
 	}
 	return result, nil
@@ -1786,7 +1814,13 @@ func (p *ironicProvisioner) hardPowerOff() (result provisioner.Result, err error
 		}
 		result, err = p.changePower(ironicNode, nodes.PowerOff)
 		if err != nil {
-			return transientError(errors.Wrap(err, "failed to power off host"))
+			var hostErr *HostLockedError
+			if errors.As(err, &hostErr) {
+				p.log.Info("could not power off host, busy")
+				return retryAfterDelay(powerRequeueDelay)
+			} else {
+				return transientError(errors.Wrap(err, "failed to power off host"))
+			}
 		}
 		p.publisher("PowerOff", "Host powered off")
 		return result, err

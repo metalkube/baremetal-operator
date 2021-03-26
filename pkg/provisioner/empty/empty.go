@@ -68,7 +68,7 @@ func (p *emptyProvisioner) Deprovision(force bool) (provisioner.Result, error) {
 // Delete removes the host from the provisioning system. It may be
 // called multiple times, and should return true for its dirty flag
 // until the deprovisioning operation is completed.
-func (p *emptyProvisioner) Delete() (provisioner.Result, error) {
+func (p *emptyProvisioner) Delete(retryPowerOff bool) (provisioner.Result, error) {
 	return provisioner.Result{}, nil
 }
 

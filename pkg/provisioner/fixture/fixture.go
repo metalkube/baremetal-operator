@@ -241,7 +241,7 @@ func (p *fixtureProvisioner) Deprovision(force bool) (result provisioner.Result,
 // Delete removes the host from the provisioning system. It may be
 // called multiple times, and should return true for its dirty flag
 // until the deprovisioning operation is completed.
-func (p *fixtureProvisioner) Delete() (result provisioner.Result, err error) {
+func (p *fixtureProvisioner) Delete(retryPowerOff bool) (result provisioner.Result, err error) {
 	p.log.Info("deleting host")
 
 	if !p.state.Deleted {

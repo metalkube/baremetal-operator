@@ -77,7 +77,7 @@ type Provisioner interface {
 	// Delete removes the host from the provisioning system. It may be
 	// called multiple times, and should return true for its dirty
 	// flag until the deletion operation is completed.
-	Delete() (result Result, err error)
+	Delete(retryPowerOff bool) (result Result, err error)
 
 	// PowerOn ensures the server is powered on independently of any image
 	// provisioning operation.

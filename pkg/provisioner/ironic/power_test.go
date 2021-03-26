@@ -72,8 +72,9 @@ func TestPowerOn(t *testing.T) {
 				TargetProvisionState: "",
 				UUID:                 nodeUUID,
 			}).WithNodeStatesPower(nodeUUID, http.StatusConflict).WithNodeStatesPowerUpdate(nodeUUID, http.StatusConflict),
-			expectedRequestAfter: 10,
-			expectedDirty:        true,
+			expectedRequestAfter: 0,
+			expectedDirty:        false,
+			expectedError:        true,
 		},
 	}
 
@@ -184,8 +185,9 @@ func TestPowerOff(t *testing.T) {
 				TargetProvisionState: "",
 				UUID:                 nodeUUID,
 			}).WithNodeStatesPower(nodeUUID, http.StatusConflict).WithNodeStatesPowerUpdate(nodeUUID, http.StatusConflict),
-			expectedRequestAfter: 10,
-			expectedDirty:        true,
+			expectedRequestAfter: 0,
+			expectedDirty:        false,
+			expectedError:        true,
 		},
 	}
 

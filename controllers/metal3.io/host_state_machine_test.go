@@ -643,7 +643,7 @@ func (m *mockProvisioner) Deprovision(force bool) (result provisioner.Result, er
 	return m.getNextResultByMethod("Deprovision"), err
 }
 
-func (m *mockProvisioner) Delete() (result provisioner.Result, err error) {
+func (m *mockProvisioner) Delete(retryPowerOff bool) (result provisioner.Result, err error) {
 	return m.getNextResultByMethod("Delete"), err
 }
 

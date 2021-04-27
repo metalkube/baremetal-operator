@@ -40,5 +40,10 @@ func validateRAID(r *RAIDConfig) error {
 }
 
 func validateUpdate(old, new *BareMetalHost) []error {
-	return nil
+	var errs []error
+	if old.Spec.BMC.Address != "" && new.Spec.BMC.Address != old.Spec.BMC.Address {
+		errs = append(errs, fmt.Errorf("BMC address can not be changed once it is set"))
+	}
+
+	return errs
 }

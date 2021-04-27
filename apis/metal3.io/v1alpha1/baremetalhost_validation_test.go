@@ -52,6 +52,12 @@ func TestValidate(t *testing.T) {
 			oldBMH:    nil,
 			wantedErr: "hardwareRAIDVolumes and softwareRAIDVolumes can not be set at the same time",
 		},
+		{
+			name:      "updateAddress",
+			newBMH:    &BareMetalHost{TypeMeta: tm, ObjectMeta: om, Spec: BareMetalHostSpec{BMC: BMCDetails{Address: "test-address-changed"}}},
+			oldBMH:    &BareMetalHost{TypeMeta: tm, ObjectMeta: om, Spec: BareMetalHostSpec{BMC: BMCDetails{Address: "test-address"}}},
+			wantedErr: "BMC Address can not be changed once it is set",
+		},
 	}
 
 	for _, tt := range tests {

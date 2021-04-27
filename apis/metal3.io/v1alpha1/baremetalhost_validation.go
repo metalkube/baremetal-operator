@@ -45,5 +45,9 @@ func validateUpdate(old, new *BareMetalHost) []error {
 		errs = append(errs, fmt.Errorf("BMC address can not be changed once it is set"))
 	}
 
+	if old.Spec.BootMACAddress != "" && new.Spec.BootMACAddress != old.Spec.BootMACAddress {
+		errs = append(errs, fmt.Errorf("bootMACAddress can not be changed once it is set"))
+	}
+
 	return errs
 }

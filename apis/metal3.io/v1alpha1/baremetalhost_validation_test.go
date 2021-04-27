@@ -58,6 +58,12 @@ func TestValidate(t *testing.T) {
 			oldBMH:    &BareMetalHost{TypeMeta: tm, ObjectMeta: om, Spec: BareMetalHostSpec{BMC: BMCDetails{Address: "test-address"}}},
 			wantedErr: "BMC Address can not be changed once it is set",
 		},
+		{
+			name:      "updateBootMAC",
+			newBMH:    &BareMetalHost{TypeMeta: tm, ObjectMeta: om, Spec: BareMetalHostSpec{BootMACAddress: "test-mac-changed"}},
+			oldBMH:    &BareMetalHost{TypeMeta: tm, ObjectMeta: om, Spec: BareMetalHostSpec{BMC: BMCDetails{Address: "test-mac"}}},
+			wantedErr: "BootMACAddress can not be changed once it is set",
+		},
 	}
 
 	for _, tt := range tests {

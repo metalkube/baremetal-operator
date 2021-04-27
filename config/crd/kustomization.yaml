@@ -17,7 +17,7 @@ patchesStrategicMerge:
 
 # [CERTMANAGER] To enable webhook, uncomment all the sections with [CERTMANAGER] prefix.
 # patches here are for enabling the CA injection for each CRD
-#- patches/cainjection_in_baremetalhosts.yaml
+- patches/cainjection_in_baremetalhosts.yaml
 #- patches/cainjection_in_hostfirmwaresettings.yaml
 #- patches/cainjection_in_firmwareschemas.yaml
 # +kubebuilder:scaffold:crdkustomizecainjectionpatch

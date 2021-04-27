@@ -2,8 +2,8 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    cert-manager.io/inject-ca-from: baremetal-operator-system/baremetal-operator-serving-cert
     controller-gen.kubebuilder.io/version: v0.4.1
-  creationTimestamp: null
   name: baremetalhosts.metal3.io
 spec:
   group: metal3.io
@@ -1460,6 +1460,18 @@ spec:
   selector:
     control-plane: controller-manager
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: baremetal-operator-webhook-service
+  namespace: baremetal-operator-system
+spec:
+  ports:
+  - port: 443
+    targetPort: 9443
+  selector:
+    control-plane: controller-manager
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1514,4 +1526,65 @@ spec:
           initialDelaySeconds: 3
           periodSeconds: 3
         name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
       terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: baremetal-operator-serving-cert
+  namespace: baremetal-operator-system
+spec:
+  dnsNames:
+  - baremetal-operator-webhook-service.baremetal-operator-system.svc
+  - baremetal-operator-webhook-service.baremetal-operator-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: baremetal-operator-selfsigned-issuer
+  secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: baremetal-operator-selfsigned-issuer
+  namespace: baremetal-operator-system
+spec:
+  selfSigned: {}
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: baremetal-operator-system/baremetal-operator-serving-cert
+  name: baremetal-operator-validating-webhook-configuration
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: baremetal-operator-webhook-service
+      namespace: baremetal-operator-system
+      path: /validate-metal3-io-v1alpha1-baremetalhost
+  failurePolicy: Fail
+  name: vbaremetalhost.kb.io
+  rules:
+  - apiGroups:
+    - metal3.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - baremetalhosts

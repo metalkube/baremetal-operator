@@ -13,6 +13,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -35,13 +37,18 @@ var _ webhook.Validator = &BareMetalHost{}
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *BareMetalHost) ValidateCreate() error {
 	baremetalhostlog.Info("validate create", "name", r.Name)
-	return nil
+	return r.Validate(nil)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *BareMetalHost) ValidateUpdate(old runtime.Object) error {
 	baremetalhostlog.Info("validate update", "name", r.Name)
-	return nil
+	bmh, casted := old.(*BareMetalHost)
+	if !casted {
+		baremetalhostlog.Error(fmt.Errorf("old object conversion error"), "validate update error")
+		return nil
+	}
+	return r.Validate(bmh)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

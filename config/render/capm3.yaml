@@ -1563,15 +1563,17 @@ metadata:
 spec:
   selfSigned: {}
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: baremetal-operator-system/baremetal-operator-serving-cert
   name: baremetal-operator-validating-webhook-configuration
 webhooks:
-- clientConfig:
-    caBundle: Cg==
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
     service:
       name: baremetal-operator-webhook-service
       namespace: baremetal-operator-system
@@ -1588,3 +1590,4 @@ webhooks:
     - UPDATE
     resources:
     - baremetalhosts
+  sideEffects: None

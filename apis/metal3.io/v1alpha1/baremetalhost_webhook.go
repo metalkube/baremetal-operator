@@ -14,6 +14,7 @@ package v1alpha1
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/errors"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,14 +31,14 @@ func (r *BareMetalHost) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-//+kubebuilder:webhook:verbs=create;update,path=/validate-metal3-io-v1alpha1-baremetalhost,mutating=false,failurePolicy=fail,groups=metal3.io,resources=baremetalhosts,versions=v1alpha1,name=vbaremetalhost.kb.io
+//+kubebuilder:webhook:verbs=create;update,path=/validate-metal3-io-v1alpha1-baremetalhost,mutating=false,failurePolicy=fail,sideEffects=none,admissionReviewVersions=v1;v1beta1,groups=metal3.io,resources=baremetalhosts,versions=v1alpha1,name=vbaremetalhost.kb.io
 
 var _ webhook.Validator = &BareMetalHost{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *BareMetalHost) ValidateCreate() error {
 	baremetalhostlog.Info("validate create", "name", r.Name)
-	return r.Validate(nil)
+	return errors.NewAggregate(r.validateCreate())
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
@@ -48,7 +49,7 @@ func (r *BareMetalHost) ValidateUpdate(old runtime.Object) error {
 		baremetalhostlog.Error(fmt.Errorf("old object conversion error"), "validate update error")
 		return nil
 	}
-	return r.Validate(bmh)
+	return errors.NewAggregate(r.validateUpdate(bmh))
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

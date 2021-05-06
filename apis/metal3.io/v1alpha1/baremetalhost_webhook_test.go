@@ -77,7 +77,13 @@ func TestBareMetalHostUpdate(t *testing.T) {
 				Name:      "test",
 				Namespace: "test-namespace",
 			}, Spec: BareMetalHostSpec{}},
-			old:       nil,
+			old: &BareMetalHost{TypeMeta: metav1.TypeMeta{
+				Kind:       "BareMetalHost",
+				APIVersion: "metal3.io/v1alpha1",
+			}, ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test-namespace",
+			}, Spec: BareMetalHostSpec{}},
 			wantedErr: "",
 		},
 	}

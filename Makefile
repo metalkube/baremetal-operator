@@ -132,7 +132,7 @@ tools/bin/controller-gen: go.mod
 
 .PHONY: manifests
 manifests: tools/bin/controller-gen ## Generate manifests e.g. CRD, RBAC etc.
-	cd apis; ../$< $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=../config/crd/bases
+	cd apis; ../$< $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:webhook:dir=../config/webhook/ output:crd:artifacts:config=../config/crd/bases
 	$< rbac:roleName=manager-role paths="./..." output:rbac:artifacts:config=config/rbac
 	$(KUSTOMIZE) build config/default > config/render/capm3.yaml
 

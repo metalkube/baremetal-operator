@@ -9,8 +9,8 @@ import (
 // log is for logging in this package.
 var log = logf.Log.WithName("baremetalhost-validation")
 
-// validateCreate validates BareMetalHost resource for creation
-func (host *BareMetalHost) validateCreate() []error {
+// validateHost validates BareMetalHost resource for creation
+func (host *BareMetalHost) validateHost() []error {
 	log.Info("validate create", "name", host.Name)
 	var errs []error
 
@@ -21,13 +21,13 @@ func (host *BareMetalHost) validateCreate() []error {
 	return errs
 }
 
-// validateUpdate validates BareMetalHost resource for update
+// validateChanges validates BareMetalHost resource on changes
 // but also covers the validations of creation
-func (host *BareMetalHost) validateUpdate(old *BareMetalHost) []error {
+func (host *BareMetalHost) validateChanges(old *BareMetalHost) []error {
 	log.Info("validate update", "name", host.Name)
 	var errs []error
 
-	if err := host.validateCreate(); err != nil {
+	if err := host.validateHost(); err != nil {
 		errs = append(errs, err...)
 	}
 

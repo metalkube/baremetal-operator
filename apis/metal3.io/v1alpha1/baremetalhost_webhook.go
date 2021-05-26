@@ -14,6 +14,7 @@ package v1alpha1
 
 import (
 	"fmt"
+
 	"k8s.io/apimachinery/pkg/util/errors"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,7 +39,7 @@ var _ webhook.Validator = &BareMetalHost{}
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *BareMetalHost) ValidateCreate() error {
 	baremetalhostlog.Info("validate create", "name", r.Name)
-	return errors.NewAggregate(r.validateCreate())
+	return errors.NewAggregate(r.validateHost())
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
@@ -49,7 +50,7 @@ func (r *BareMetalHost) ValidateUpdate(old runtime.Object) error {
 		baremetalhostlog.Error(fmt.Errorf("old object conversion error"), "validate update error")
 		return nil
 	}
-	return errors.NewAggregate(r.validateUpdate(bmh))
+	return errors.NewAggregate(r.validateChanges(bmh))
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

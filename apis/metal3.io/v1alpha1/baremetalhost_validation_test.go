@@ -75,7 +75,7 @@ func TestValidateCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.newBMH.validateCreate(); !errorArrContains(err, tt.wantedErr) {
+			if err := tt.newBMH.validateHost(); !errorArrContains(err, tt.wantedErr) {
 				t.Errorf("BareMetalHost.ValidateBareMetalHost() error = %v, wantErr %v", err, tt.wantedErr)
 			}
 		})
@@ -127,7 +127,7 @@ func TestValidateUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.newBMH.validateUpdate(tt.oldBMH); !errorArrContains(err, tt.wantedErr) {
+			if err := tt.newBMH.validateChanges(tt.oldBMH); !errorArrContains(err, tt.wantedErr) {
 				t.Errorf("BareMetalHost.ValidateBareMetalHost() error = %v, wantErr %v", err, tt.wantedErr)
 			}
 		})

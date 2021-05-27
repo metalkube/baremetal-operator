@@ -91,7 +91,6 @@ func main() {
 	var runInTestMode bool
 	var runInDemoMode bool
 	var webhookPort int
-	var enableWebhook bool
 
 	// From CAPI point of view, BMO should be able to watch all namespaces
 	// in case of a deployment that is not multi-tenant. If the deployment
@@ -112,12 +111,13 @@ func main() {
 		"The address the health endpoint binds to.")
 	flag.IntVar(&webhookPort, "webhook-port", 9443,
 		"Webhook Server port (set to 0 to disable)")
-	flag.BoolVar(&enableWebhook, "enable-webhook", true, "Enable webhook (default is True)")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(devLogging)))
 
 	printVersion()
+
+	enableWebhook := webhookPort != 0
 
 	leaderElectionNamespace := os.Getenv("POD_NAMESPACE")
 	if leaderElectionNamespace == "" {

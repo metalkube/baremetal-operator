@@ -1469,8 +1469,6 @@ spec:
   ports:
   - port: 443
     targetPort: 9443
-  selector:
-    control-plane: controller-manager
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -1539,7 +1537,7 @@ spec:
       - name: cert
         secret:
           defaultMode: 420
-          secretName: webhook-server-cert
+          secretName: bmo-webhook-server-cert
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -1553,7 +1551,7 @@ spec:
   issuerRef:
     kind: Issuer
     name: baremetal-operator-selfsigned-issuer
-  secretName: webhook-server-cert
+  secretName: bmo-webhook-server-cert
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
@@ -1572,13 +1570,13 @@ metadata:
 webhooks:
 - admissionReviewVersions:
   - v1
-  - v1beta1
   clientConfig:
     service:
       name: baremetal-operator-webhook-service
       namespace: baremetal-operator-system
       path: /validate-metal3-io-v1alpha1-baremetalhost
   failurePolicy: Fail
+  matchPolicy: Equivalent
   name: vbaremetalhost.kb.io
   rules:
   - apiGroups:

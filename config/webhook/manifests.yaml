@@ -8,13 +8,13 @@ metadata:
 webhooks:
 - admissionReviewVersions:
   - v1
+  - v1beta
   clientConfig:
     service:
       name: webhook-service
       namespace: system
       path: /validate-metal3-io-v1alpha1-baremetalhost
-  failurePolicy: Fail
-  matchPolicy: Equivalent
+  failurePolicy: Ignore
   name: vbaremetalhost.kb.io
   rules:
   - apiGroups:

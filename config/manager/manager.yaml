@@ -5,15 +5,18 @@ metadata:
   namespace: system
   labels:
     control-plane: controller-manager
+    webhook: controller-manager
 spec:
   selector:
     matchLabels:
       control-plane: controller-manager
+      webhook: controller-manager
   replicas: 1
   template:
     metadata:
       labels:
         control-plane: controller-manager
+        webhook: controller-manager
     spec:
       containers:
       - command:

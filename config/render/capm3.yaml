@@ -1471,12 +1471,14 @@ spec:
     targetPort: 9443
   selector:
     control-plane: controller-manager
+    webhook: controller-manager
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     control-plane: controller-manager
+    webhook: controller-manager
   name: baremetal-operator-controller-manager
   namespace: baremetal-operator-system
 spec:
@@ -1484,10 +1486,12 @@ spec:
   selector:
     matchLabels:
       control-plane: controller-manager
+      webhook: controller-manager
   template:
     metadata:
       labels:
         control-plane: controller-manager
+        webhook: controller-manager
     spec:
       containers:
       - args:
@@ -1578,7 +1582,7 @@ webhooks:
       name: baremetal-operator-webhook-service
       namespace: baremetal-operator-system
       path: /validate-metal3-io-v1alpha1-baremetalhost
-  failurePolicy: Ignore
+  failurePolicy: Fail
   name: vbaremetalhost.kb.io
   rules:
   - apiGroups:

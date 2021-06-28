@@ -75,10 +75,18 @@ type InspectData struct {
 	BootMode metal3v1alpha1.BootMode
 }
 
+// FirmwareConfig and FirmwareSettings are used for implementation of similar functionality
+// FirmwareConfig contains a small subset of common names/values for the BIOS settings and the BMC
+// driver converts them to vendor specific name/values.
+// CurrentFirmwareSettings are the complete settings retrieved from the BMC, the names and
+// values are vendor specific.
+// DesiredFirmwareSettings contains values that the user has changed.
 type PrepareData struct {
-	RAIDConfig      *metal3v1alpha1.RAIDConfig
-	RootDeviceHints *metal3v1alpha1.RootDeviceHints
-	FirmwareConfig  *metal3v1alpha1.FirmwareConfig
+	RAIDConfig              *metal3v1alpha1.RAIDConfig
+	RootDeviceHints         *metal3v1alpha1.RootDeviceHints
+	FirmwareConfig          *metal3v1alpha1.FirmwareConfig
+	CurrentFirmwareSettings metal3v1alpha1.SettingsMap
+	DesiredFirmwareSettings metal3v1alpha1.DesiredSettingsMap
 }
 
 type ProvisionData struct {
@@ -157,6 +165,9 @@ type Provisioner interface {
 
 	// HasCapacity checks if the backend has a free (de)provisioning slot for the current host
 	HasCapacity() (result bool, err error)
+
+	// GetFirmwareSettings gets the BIOS settings and optional schema from the host and returns maps
+	GetFirmwareSettings(includeSchema bool) (settings metal3v1alpha1.SettingsMap, schema map[string]metal3v1alpha1.SettingSchema, err error)
 }
 
 // Result holds the response from a call in the Provsioner API.

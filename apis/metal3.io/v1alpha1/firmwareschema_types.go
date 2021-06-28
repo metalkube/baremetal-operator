@@ -84,7 +84,7 @@ func (host *FirmwareSchema) CheckSettingIsValid(name string, value intstr.IntOrS
 
 	schema, ok := schemas[name]
 	if !ok {
-		// The setting must exist in the status
+		// The setting must exist in the Spec
 		return false
 	}
 

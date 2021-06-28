@@ -1,6 +1,7 @@
 package ironic
 
 import (
+	"net/url"
 	"testing"
 	"time"
 
@@ -13,7 +14,12 @@ import (
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/fixture"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic/clients"
+	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic/testbmc"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic/testserver"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
+
+	_ "github.com/metal3-io/baremetal-operator/pkg/bmc"
 )
 
 func TestProvision(t *testing.T) {
@@ -389,6 +395,241 @@ func TestIronicHasSameImage(t *testing.T) {
 
 			sameImage := prov.ironicHasSameImage(&tc.node, *host.Spec.Image)
 			assert.Equal(t, tc.expected, sameImage)
+		})
+	}
+}
+
+func TestBuildCleanSteps(t *testing.T) {
+
+	var True bool = true
+	var False bool = false
+
+	nodeUUID := "33ce8659-7400-4c68-9535-d10766f07a58"
+	cases := []struct {
+		name             string
+		ironic           *testserver.IronicMock
+		currentSettings  v1alpha1.SettingsMap
+		desiredSettings  v1alpha1.DesiredSettingsMap
+		firmwareConfig   *v1alpha1.FirmwareConfig
+		expectedSettings []map[string]string
+	}{
+		{
+			name: "no current settings",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.DeployFail),
+				UUID:           nodeUUID,
+			}),
+			currentSettings: nil,
+			desiredSettings: nil,
+			firmwareConfig: &v1alpha1.FirmwareConfig{
+				VirtualizationEnabled:             &True,
+				SimultaneousMultithreadingEnabled: &False,
+			},
+			expectedSettings: []map[string]string{
+				{
+					"name":  "ProcVirtualization",
+					"value": "Enabled",
+				},
+				{
+					"name":  "ProcHyperthreading",
+					"value": "Disabled",
+				},
+			},
+		},
+		{
+			name: "current settings same as bmc",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.DeployFail),
+				UUID:           nodeUUID,
+			}),
+			currentSettings: map[string]string{
+				"L2Cache":            "10x256 KB",
+				"NumCores":           "10",
+				"ProcVirtualization": "Enabled",
+				"ProcHyperthreading": "Disabled",
+			},
+			desiredSettings: nil,
+			firmwareConfig: &v1alpha1.FirmwareConfig{
+				VirtualizationEnabled:             &True,
+				SimultaneousMultithreadingEnabled: &False,
+			},
+			expectedSettings: nil,
+		},
+		{
+			name: "current settings different than bmc",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.DeployFail),
+				UUID:           nodeUUID,
+			}),
+			currentSettings: v1alpha1.SettingsMap{
+				"L2Cache":            "10x256 KB",
+				"NumCores":           "10",
+				"ProcVirtualization": "Disabled",
+				"ProcHyperthreading": "Enabled",
+			},
+			desiredSettings: nil,
+			firmwareConfig: &v1alpha1.FirmwareConfig{
+				VirtualizationEnabled:             &True,
+				SimultaneousMultithreadingEnabled: &False,
+			},
+			expectedSettings: []map[string]string{
+				{
+					"name":  "ProcVirtualization",
+					"value": "Enabled",
+				},
+				{
+					"name":  "ProcHyperthreading",
+					"value": "Disabled",
+				},
+			},
+		},
+		{
+			name: "current settings same as bmc different than desired",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.DeployFail),
+				UUID:           nodeUUID,
+			}),
+			currentSettings: v1alpha1.SettingsMap{
+				"L2Cache":               "10x256 KB",
+				"NumCores":              "10",
+				"NetworkBootRetryCount": "20",
+				"ProcVirtualization":    "Enabled",
+				"ProcHyperthreading":    "Disabled",
+			},
+			desiredSettings: v1alpha1.DesiredSettingsMap{
+				"NetworkBootRetryCount": intstr.FromString("10"),
+				"ProcVirtualization":    intstr.FromString("Disabled"),
+				"ProcHyperthreading":    intstr.FromString("Enabled"),
+			},
+			firmwareConfig: &v1alpha1.FirmwareConfig{
+				VirtualizationEnabled:             &True,
+				SimultaneousMultithreadingEnabled: &False,
+			},
+			expectedSettings: []map[string]string{
+				{
+					"name":  "NetworkBootRetryCount",
+					"value": "10",
+				},
+				{
+					"name":  "ProcVirtualization",
+					"value": "Disabled",
+				},
+				{
+					"name":  "ProcHyperthreading",
+					"value": "Enabled",
+				},
+			},
+		},
+		{
+			name: "current settings different than bmc and desired",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.DeployFail),
+				UUID:           nodeUUID,
+			}),
+			currentSettings: v1alpha1.SettingsMap{
+				"L2Cache":               "10x256 KB",
+				"NumCores":              "10",
+				"NetworkBootRetryCount": "20",
+				"ProcVirtualization":    "Enabled",
+				"ProcHyperthreading":    "Disabled",
+			},
+			desiredSettings: v1alpha1.DesiredSettingsMap{
+				"NetworkBootRetryCount": intstr.FromString("5"),
+				"ProcVirtualization":    intstr.FromString("Enabled"),
+				"ProcHyperthreading":    intstr.FromString("Disabled"),
+			},
+			firmwareConfig: &v1alpha1.FirmwareConfig{
+				VirtualizationEnabled:             &False,
+				SimultaneousMultithreadingEnabled: &True,
+			},
+			expectedSettings: []map[string]string{
+				{
+					"name":  "ProcVirtualization",
+					"value": "Disabled",
+				},
+				{
+					"name":  "ProcHyperthreading",
+					"value": "Enabled",
+				},
+				{
+					"name":  "NetworkBootRetryCount",
+					"value": "5",
+				},
+			},
+		},
+		{
+			name: "bmc and desired duplicate settings",
+			ironic: testserver.NewIronic(t).WithDefaultResponses().Node(nodes.Node{
+				ProvisionState: string(nodes.DeployFail),
+				UUID:           nodeUUID,
+			}),
+			currentSettings: v1alpha1.SettingsMap{
+				"L2Cache":            "10x256 KB",
+				"NumCores":           "10",
+				"ProcVirtualization": "Enabled",
+				"ProcHyperthreading": "Disabled",
+			},
+			desiredSettings: v1alpha1.DesiredSettingsMap{
+				"ProcVirtualization": intstr.FromString("Disabled"),
+				"ProcHyperthreading": intstr.FromString("Enabled"),
+			},
+			firmwareConfig: &v1alpha1.FirmwareConfig{
+				VirtualizationEnabled:             &False,
+				SimultaneousMultithreadingEnabled: &True,
+			},
+			expectedSettings: []map[string]string{
+				{
+					"name":  "ProcHyperthreading",
+					"value": "Enabled",
+				},
+				{
+					"name":  "ProcVirtualization",
+					"value": "Disabled",
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.ironic != nil {
+				tc.ironic.Start()
+				defer tc.ironic.Stop()
+			}
+
+			inspector := testserver.NewInspector(t).Ready().WithIntrospection(nodeUUID, introspection.Introspection{
+				Finished: false,
+			})
+			inspector.Start()
+			defer inspector.Stop()
+
+			host := makeHost()
+			host.Status.Provisioning.ID = nodeUUID
+			publisher := func(reason, message string) {}
+			auth := clients.AuthConfig{Type: clients.NoAuth}
+			prov, err := newProvisionerWithSettings(host, bmc.Credentials{}, publisher,
+				tc.ironic.Endpoint(), auth, inspector.Endpoint(), auth,
+			)
+			if err != nil {
+				t.Fatalf("could not create provisioner: %s", err)
+			}
+
+			parsedURL := &url.URL{Scheme: "redfish", Host: "10.1.1.1"}
+
+			testBMC, _ := testbmc.NewTestBMCAccessDetails(parsedURL, false)
+
+			cleanSteps, err := prov.buildManualCleaningSteps(testBMC, provisioner.PrepareData{
+				FirmwareConfig:          tc.firmwareConfig,
+				CurrentFirmwareSettings: tc.currentSettings,
+				DesiredFirmwareSettings: tc.desiredSettings,
+			})
+
+			assert.Equal(t, nil, err)
+			if cleanSteps == nil {
+				assert.Equal(t, tc.expectedSettings, []map[string]string(nil))
+			} else {
+				settings := cleanSteps[0].Args["settings"]
+				assert.ElementsMatch(t, tc.expectedSettings, settings)
+			}
 		})
 	}
 }

@@ -270,3 +270,97 @@ func (m *IronicMock) Nodes(allNodes []nodes.Node) *IronicMock {
 	m.ResponseJSON(m.buildURL("/v1/nodes", http.MethodGet), resp)
 	return m
 }
+
+// BIOSSettings configure the server with a valid response for /v1/nodes/<node>/bios
+func (m *IronicMock) BIOSSettings(nodeUUID string) *IronicMock {
+	settings := []nodes.BIOSSetting{
+		{
+			Name:  "L2Cache",
+			Value: "10x256 KB",
+		},
+		{
+			Name:  "NumCores",
+			Value: "10",
+		},
+		{
+			Name:  "ProcVirtualization",
+			Value: "Enabled",
+		},
+	}
+
+	resp := struct {
+		Settings []nodes.BIOSSetting `json:"bios"`
+	}{
+		Settings: settings,
+	}
+
+	m.ResponseJSON(m.buildURL("/v1/nodes/"+nodeUUID+"/bios", http.MethodGet), resp)
+	return m
+}
+
+// BIOSDetailSettings configure the server with a valid response for /v1/nodes/<node>/bios?detail=True
+func (m *IronicMock) BIOSDetailSettings(nodeUUID string) *IronicMock {
+
+	iTrue := true
+	iFalse := false
+	minLength := 0
+	maxLength := 16
+	lowerBound := 0
+	upperBound := 20
+
+	settings := []nodes.BIOSSetting{
+		{
+			Name:            "L2Cache",
+			Value:           "10x256 KB",
+			AttributeType:   "String",
+			AllowableValues: []string{},
+			LowerBound:      nil,
+			UpperBound:      nil,
+			MinLength:       &minLength,
+			MaxLength:       &maxLength,
+			ReadOnly:        &iTrue,
+			ResetRequired:   nil,
+			Unique:          nil,
+		},
+		{
+			Name:            "NumCores",
+			Value:           "10",
+			AttributeType:   "Integer",
+			AllowableValues: []string{},
+			LowerBound:      &lowerBound,
+			UpperBound:      &upperBound,
+			MinLength:       nil,
+			MaxLength:       nil,
+			ReadOnly:        &iTrue,
+			ResetRequired:   nil,
+			Unique:          nil,
+		},
+		{
+			Name:            "ProcVirtualization",
+			Value:           "Enabled",
+			AttributeType:   "Enumeration",
+			AllowableValues: []string{"Enabled", "Disabled"},
+			LowerBound:      nil,
+			UpperBound:      nil,
+			MinLength:       nil,
+			MaxLength:       nil,
+			ReadOnly:        &iFalse,
+			ResetRequired:   nil,
+			Unique:          nil,
+		},
+	}
+
+	resp := struct {
+		Settings []nodes.BIOSSetting `json:"bios"`
+	}{
+		Settings: settings,
+	}
+
+	m.ResponseJSON(m.buildURL("/v1/nodes/"+nodeUUID+"/bios", http.MethodGet), resp)
+	return m
+}
+
+// NoBIOS configures the server so /v1/node/<node>/bios returns a 404
+func (m *IronicMock) NoBIOS(nodeUUID string) *IronicMock {
+	return m.NodeError(nodeUUID, http.StatusNotFound)
+}

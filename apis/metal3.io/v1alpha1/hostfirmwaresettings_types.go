@@ -26,6 +26,13 @@ import (
 type SettingsMap map[string]string
 type DesiredSettingsMap map[string]intstr.IntOrString
 
+const (
+	// strings for storing the FirmwareSchema in Annotations
+	FirmwareSchemaNameAnnotation = "firmwareSchemaName"
+
+	FirmwareSchemaNamespaceAnnotation = "firmwareSchemaNamespace"
+)
+
 type SchemaReference struct {
 	// `namespace` is the namespace of the where the schema is stored.
 	Namespace string `json:"namespace"`

@@ -58,3 +58,25 @@ type NoDataInSecretError struct {
 func (e NoDataInSecretError) Error() string {
 	return fmt.Sprintf("Secret %s does not contain key %s", e.secret, e.key)
 }
+
+// InvalidHostFirmwareNameError is returned when the HostFirmwareSetting has
+// an unexpected name
+type InvalidHostFirmwareNameError struct {
+	name string
+}
+
+func (e InvalidHostFirmwareNameError) Error() string {
+	return fmt.Sprintf("Invalid HostFirmwareSetting name: %s", e.name)
+}
+
+// InvalidHostFirmwareValueError is returned when the HostFirmwareSetting has
+// an invalid value
+type InvalidHostFirmwareValueError struct {
+	name  string
+	value string
+}
+
+func (e InvalidHostFirmwareValueError) Error() string {
+	return fmt.Sprintf("Invalid HostFirmwareSetting name: %s, value: %s",
+		e.name, e.value)
+}

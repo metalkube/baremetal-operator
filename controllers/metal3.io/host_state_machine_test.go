@@ -16,6 +16,7 @@ import (
 	promutil "github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -24,6 +25,19 @@ func testStateMachine(host *metal3v1alpha1.BareMetalHost) *hostStateMachine {
 	p, _ := r.ProvisionerFactory.NewProvisioner(provisioner.BuildHostData(*host, bmc.Credentials{}),
 		func(reason, message string) {})
 	return newHostStateMachine(host, r, p, true)
+}
+
+// Create a reconciler with a fake client to satisfy states that use the client
+func testNewReconciler(host *metal3v1alpha1.BareMetalHost) *BareMetalHostReconciler {
+
+	c := fakeclient.NewFakeClient(host)
+	reconciler := &BareMetalHostReconciler{
+		Client:             c,
+		ProvisionerFactory: nil,
+		Log:                ctrl.Log.WithName("host_state_machine").WithName("BareMetalHost"),
+	}
+
+	return reconciler
 }
 
 func TestProvisioningCapacity(t *testing.T) {
@@ -124,7 +138,8 @@ func TestProvisioningCapacity(t *testing.T) {
 		t.Run(tc.Scenario, func(t *testing.T) {
 			prov := newMockProvisioner()
 			prov.setHasCapacity(tc.HasProvisioningCapacity)
-			hsm := newHostStateMachine(tc.Host, &BareMetalHostReconciler{}, prov, true)
+			reconciler := testNewReconciler(tc.Host)
+			hsm := newHostStateMachine(tc.Host, reconciler, prov, true)
 			info := makeDefaultReconcileInfo(tc.Host)
 			delayedProvisioningHostCounters.Reset()
 
@@ -178,7 +193,8 @@ func TestDeprovisioningCapacity(t *testing.T) {
 		t.Run(tc.Scenario, func(t *testing.T) {
 			prov := newMockProvisioner()
 			prov.setHasCapacity(tc.HasDeprovisioningCapacity)
-			hsm := newHostStateMachine(tc.Host, &BareMetalHostReconciler{}, prov, true)
+			reconciler := testNewReconciler(tc.Host)
+			hsm := newHostStateMachine(tc.Host, reconciler, prov, true)
 			info := makeDefaultReconcileInfo(tc.Host)
 			delayedDeprovisioningHostCounters.Reset()
 
@@ -363,7 +379,8 @@ func TestDetach(t *testing.T) {
 				}
 			}
 			prov := newMockProvisioner()
-			hsm := newHostStateMachine(tc.Host, &BareMetalHostReconciler{}, prov, true)
+			reconciler := testNewReconciler(tc.Host)
+			hsm := newHostStateMachine(tc.Host, reconciler, prov, true)
 			info := makeDefaultReconcileInfo(tc.Host)
 			result := hsm.ReconcileState(info)
 
@@ -405,7 +422,8 @@ func TestDetachError(t *testing.T) {
 				metal3v1alpha1.DetachedAnnotation: "true",
 			}
 			prov := newMockProvisioner()
-			hsm := newHostStateMachine(tc.Host, &BareMetalHostReconciler{}, prov, true)
+			reconciler := testNewReconciler(tc.Host)
+			hsm := newHostStateMachine(tc.Host, reconciler, prov, true)
 			info := makeDefaultReconcileInfo(tc.Host)
 
 			prov.setNextError("Detach", "some error")
@@ -853,7 +871,8 @@ func TestErrorCountIncreasedOnActionFailure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.Scenario, func(t *testing.T) {
 			prov := newMockProvisioner()
-			hsm := newHostStateMachine(tt.Host, &BareMetalHostReconciler{}, prov, true)
+			reconciler := testNewReconciler(tt.Host)
+			hsm := newHostStateMachine(tt.Host, reconciler, prov, true)
 			info := makeDefaultReconcileInfo(tt.Host)
 
 			prov.setNextError(tt.ProvisionerErrorOn, "some error")
@@ -913,7 +932,8 @@ func TestErrorCountClearedOnStateTransition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.Scenario, func(t *testing.T) {
 			prov := newMockProvisioner()
-			hsm := newHostStateMachine(tt.Host, &BareMetalHostReconciler{}, prov, true)
+			reconciler := testNewReconciler(tt.Host)
+			hsm := newHostStateMachine(tt.Host, reconciler, prov, true)
 			info := makeDefaultReconcileInfo(tt.Host)
 
 			info.host.Status.ErrorCount = 1
@@ -1181,6 +1201,10 @@ func (m *mockProvisioner) PowerOff(rebootMode metal3v1alpha1.RebootMode, force b
 }
 
 func (m *mockProvisioner) IsReady() (result bool, err error) {
+	return
+}
+
+func (m *mockProvisioner) GetFirmwareSettings(includeSchema bool) (settings metal3v1alpha1.SettingsMap, schema map[string]metal3v1alpha1.SettingSchema, err error) {
 	return
 }
 

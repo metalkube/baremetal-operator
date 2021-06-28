@@ -8,11 +8,11 @@ import (
 )
 
 func init() {
-	bmc.RegisterFactory("test", newTestBMCAccessDetails, []string{})
-	bmc.RegisterFactory("test-needs-mac", newTestBMCAccessDetails, []string{})
+	bmc.RegisterFactory("test", NewTestBMCAccessDetails, []string{})
+	bmc.RegisterFactory("test-needs-mac", NewTestBMCAccessDetails, []string{})
 }
 
-func newTestBMCAccessDetails(parsedURL *url.URL, disableCertificateVerification bool) (bmc.AccessDetails, error) {
+func NewTestBMCAccessDetails(parsedURL *url.URL, disableCertificateVerification bool) (bmc.AccessDetails, error) {
 	return &testAccessDetails{
 		bmcType:                        parsedURL.Scheme,
 		hostname:                       parsedURL.Hostname(),
@@ -88,5 +88,52 @@ func (a *testAccessDetails) SupportsSecureBoot() bool {
 }
 
 func (a *testAccessDetails) BuildBIOSSettings(firmwareConfig *metal3v1alpha1.FirmwareConfig) (settings []map[string]string, err error) {
-	return nil, nil
+
+	// Return sample BMC data for test purposes
+	if firmwareConfig == nil {
+		return nil, nil
+	}
+
+	var value string
+
+	if firmwareConfig.VirtualizationEnabled != nil {
+		value = "Disabled"
+		if *firmwareConfig.VirtualizationEnabled {
+			value = "Enabled"
+		}
+		settings = append(settings,
+			map[string]string{
+				"name":  "ProcVirtualization",
+				"value": value,
+			},
+		)
+	}
+
+	if firmwareConfig.SimultaneousMultithreadingEnabled != nil {
+		value = "Disabled"
+		if *firmwareConfig.SimultaneousMultithreadingEnabled {
+			value = "Enabled"
+		}
+		settings = append(settings,
+			map[string]string{
+				"name":  "ProcHyperthreading",
+				"value": value,
+			},
+		)
+	}
+
+	if firmwareConfig.SriovEnabled != nil {
+		value = "Disabled"
+		if *firmwareConfig.SriovEnabled {
+			value = "Enabled"
+		}
+		settings = append(settings,
+			map[string]string{
+				"name":  "Sriov",
+				"value": value,
+			},
+		)
+	}
+
+	return
 }

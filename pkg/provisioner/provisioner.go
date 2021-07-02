@@ -62,6 +62,7 @@ type ManagementAccessData struct {
 	AutomatedCleaningMode metal3v1alpha1.AutomatedCleaningMode
 	State                 metal3v1alpha1.ProvisioningState
 	CurrentImage          *metal3v1alpha1.Image
+	CurrentRAIDConfig     *metal3v1alpha1.RAIDConfig
 }
 
 type AdoptData struct {
@@ -72,10 +73,24 @@ type InspectData struct {
 	BootMode metal3v1alpha1.BootMode
 }
 
+type PrebootSettings struct {
+	RAIDConfig         *metal3v1alpha1.RAIDConfig
+	HasRootDeviceHints bool
+	FirmwareConfig     *metal3v1alpha1.FirmwareConfig
+}
+
+func BuildPrebootSettings(status *metal3v1alpha1.BareMetalHostStatus) PrebootSettings {
+	return PrebootSettings{
+		RAIDConfig:         status.Provisioning.RAID.DeepCopy(),
+		HasRootDeviceHints: status.Provisioning.RootDeviceHints != nil,
+		FirmwareConfig:     status.Provisioning.Firmware.DeepCopy(),
+	}
+}
+
 type PrepareData struct {
-	RAIDConfig      *metal3v1alpha1.RAIDConfig
-	RootDeviceHints *metal3v1alpha1.RootDeviceHints
-	FirmwareConfig  *metal3v1alpha1.FirmwareConfig
+	PrebootSettings
+	ExistingSettings PrebootSettings
+	PreviousError    bool
 }
 
 type ProvisionData struct {

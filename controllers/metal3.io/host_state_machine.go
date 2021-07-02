@@ -403,7 +403,7 @@ func (hsm *hostStateMachine) handlePreparing(info *reconcileInfo) actionResult {
 func (hsm *hostStateMachine) handleReady(info *reconcileInfo) actionResult {
 	if hsm.Host.Spec.ExternallyProvisioned {
 		hsm.NextState = metal3v1alpha1.StateExternallyProvisioned
-		clearHostProvisioningSettings(info.host)
+		clearPreparationSettings(info.host)
 		return actionComplete{}
 	}
 
@@ -412,7 +412,7 @@ func (hsm *hostStateMachine) handleReady(info *reconcileInfo) actionResult {
 		return actionComplete{}
 	}
 
-	if dirty, _, err := getHostProvisioningSettings(info.host); err != nil {
+	if dirty, _, err := getPreparationSettings(info.host); err != nil {
 		return actionError{err}
 	} else if dirty {
 		hsm.NextState = metal3v1alpha1.StatePreparing

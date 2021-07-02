@@ -41,7 +41,7 @@ digraph BaremetalHost {
 
     Ready [shape=doublecircle]
     Ready -> Provisioning [label="NeedsProvisioning()"]
-    Ready -> Preparing [label="saveHostProvisioningSettings()"]
+    Ready -> Preparing [label="getPreparationSettings()"]
     Ready -> Deleting7 [label="!DeletionTimestamp.IsZero()"]
     Ready -> Inspecting [label="hasInspectAnnotation()"]
 

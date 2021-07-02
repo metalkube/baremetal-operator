@@ -1311,14 +1311,14 @@ func TestUpdateRootDeviceHints(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Scenario, func(t *testing.T) {
-			dirty, newStatus, err := getHostProvisioningSettings(&tc.Host)
+			dirty, newStatus, err := getPreparationSettings(&tc.Host)
 			if err != nil {
 				t.Fatal(err)
 			}
 			assert.Equal(t, tc.Dirty, dirty, "dirty flag did not match")
 			assert.Equal(t, tc.Expected, newStatus.Provisioning.RootDeviceHints)
 
-			dirty, err = saveHostProvisioningSettings(&tc.Host)
+			dirty = savePreparationSettings(&tc.Host)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1975,7 +1975,7 @@ func TestUpdateRAID(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			host.Spec.RAID = c.specRAID
 			host.Status.Provisioning.RAID = c.statusRAID
-			dirty, _ := saveHostProvisioningSettings(&host)
+			dirty := savePreparationSettings(&host)
 			assert.Equal(t, c.dirty, dirty)
 			assert.Equal(t, c.expected, host.Status.Provisioning.RAID)
 		})

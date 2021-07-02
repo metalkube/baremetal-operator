@@ -46,7 +46,7 @@ func TestProvisioningCapacity(t *testing.T) {
 		},
 		{
 			Scenario:                "transition-to-provisioning-delayed",
-			Host:                    host(metal3v1alpha1.StateReady).SaveHostProvisioningSettings().build(),
+			Host:                    host(metal3v1alpha1.StateReady).SavePreparationSettings().build(),
 			HasProvisioningCapacity: false,
 
 			ExpectedProvisioningState: metal3v1alpha1.StateReady,
@@ -62,7 +62,7 @@ func TestProvisioningCapacity(t *testing.T) {
 		},
 		{
 			Scenario:                "transition-to-provisioning-ok",
-			Host:                    host(metal3v1alpha1.StateReady).SaveHostProvisioningSettings().build(),
+			Host:                    host(metal3v1alpha1.StateReady).SavePreparationSettings().build(),
 			HasProvisioningCapacity: true,
 
 			ExpectedProvisioningState: metal3v1alpha1.StateProvisioning,
@@ -826,8 +826,8 @@ func (hb *hostBuilder) build() *metal3v1alpha1.BareMetalHost {
 	return &hb.BareMetalHost
 }
 
-func (hb *hostBuilder) SaveHostProvisioningSettings() *hostBuilder {
-	saveHostProvisioningSettings(&hb.BareMetalHost)
+func (hb *hostBuilder) SavePreparationSettings() *hostBuilder {
+	savePreparationSettings(&hb.BareMetalHost)
 	return hb
 }
 

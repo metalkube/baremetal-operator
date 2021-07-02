@@ -598,6 +598,7 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 			AutomatedCleaningMode: info.host.Spec.AutomatedCleaningMode,
 			State:                 info.host.Status.Provisioning.State,
 			CurrentImage:          getCurrentImage(info.host),
+			CurrentRAIDConfig:     info.host.Status.Provisioning.RAID,
 		},
 		credsChanged,
 		info.host.Status.ErrorType == metal3v1alpha1.RegistrationError)
@@ -614,7 +615,7 @@ func (r *BareMetalHostReconciler) registerHost(prov provisioner.Provisioner, inf
 		info.log.Info("setting provisioning id", "ID", provID)
 		info.host.Status.Provisioning.ID = provID
 		if info.host.Status.Provisioning.State == metal3v1alpha1.StatePreparing {
-			clearHostProvisioningSettings(info.host)
+			clearPreparationSettings(info.host)
 		}
 		dirty = true
 	}
@@ -751,15 +752,24 @@ func (r *BareMetalHostReconciler) actionMatchProfile(prov provisioner.Provisione
 func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 	info.log.Info("preparing")
 
-	dirty, newStatus, err := getHostProvisioningSettings(info.host)
+	dirty, err := saveHostProvisioningSettings(info.host)
+	if err != nil {
+		return actionError{err}
+	}
+	if dirty {
+		info.log.Info("saving provisioning settings")
+		return actionUpdate{}
+	}
+
+	dirty, newStatus, err := getPreparationSettings(info.host)
 	if err != nil {
 		return actionError{err}
 	}
 
 	prepareData := provisioner.PrepareData{
-		RAIDConfig:      newStatus.Provisioning.RAID.DeepCopy(),
-		RootDeviceHints: newStatus.Provisioning.RootDeviceHints.DeepCopy(),
-		FirmwareConfig:  newStatus.Provisioning.Firmware.DeepCopy(),
+		PrebootSettings:  provisioner.BuildPrebootSettings(newStatus),
+		ExistingSettings: provisioner.BuildPrebootSettings(&info.host.Status),
+		PreviousError:    info.host.Status.ErrorType == metal3v1alpha1.PreparationError,
 	}
 	provResult, started, err := prov.Prepare(prepareData,
 		dirty || info.host.Status.ErrorType == metal3v1alpha1.PreparationError)
@@ -769,16 +779,13 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 
 	if provResult.ErrorMessage != "" {
 		info.log.Info("handling cleaning error in controller")
-		clearHostProvisioningSettings(info.host)
+		clearPreparationSettings(info.host)
 		return recordActionFailure(info, metal3v1alpha1.PreparationError, provResult.ErrorMessage)
 	}
 
 	if dirty && started {
-		info.log.Info("saving host provisioning settings")
-		_, err := saveHostProvisioningSettings(info.host)
-		if err != nil {
-			return actionError{errors.Wrap(err, "could not save the host provisioning settings")}
-		}
+		info.log.Info("saving preparation settings")
+		savePreparationSettings(info.host)
 	}
 	if started && clearError(info.host) {
 		dirty = true
@@ -855,15 +862,6 @@ func (r *BareMetalHostReconciler) actionProvisioning(prov provisioner.Provisione
 	return actionComplete{}
 }
 
-// clearHostProvisioningSettings removes the values related to
-// provisioning that do not trigger re-provisioning from the status
-// fields of a host.
-func clearHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) {
-	host.Status.Provisioning.RootDeviceHints = nil
-	host.Status.Provisioning.RAID = nil
-	host.Status.Provisioning.Firmware = nil
-}
-
 func (r *BareMetalHostReconciler) actionDeprovisioning(prov provisioner.Provisioner, info *reconcileInfo) actionResult {
 	if info.host.Status.Provisioning.Image.URL != "" {
 		// Adopt the host in case it has been re-registered during the
@@ -913,9 +911,11 @@ func (r *BareMetalHostReconciler) actionDeprovisioning(prov provisioner.Provisio
 	}
 
 	// After the provisioner is done, clear the provisioning settings
-	// so we transition to the next state.
 	info.host.Status.Provisioning.Image = metal3v1alpha1.Image{}
-	clearHostProvisioningSettings(info.host)
+	// We don't expect software RAID configuration to survive the deprovisioning
+	if info.host.Status.Provisioning.RAID != nil {
+		info.host.Status.Provisioning.RAID.SoftwareRAIDVolumes = nil
+	}
 
 	return actionComplete{}
 }
@@ -1048,38 +1048,22 @@ func (r *BareMetalHostReconciler) actionManageReady(prov provisioner.Provisioner
 	return r.manageHostPower(prov, info)
 }
 
-func getHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) (dirty bool, status *metal3v1alpha1.BareMetalHostStatus, err error) {
+func getPreparationSettings(host *metal3v1alpha1.BareMetalHost) (dirty bool, status *metal3v1alpha1.BareMetalHostStatus, err error) {
 	hostCopy := host.DeepCopy()
 	dirty, err = saveHostProvisioningSettings(hostCopy)
 	if err != nil {
 		err = errors.Wrap(err, "could not determine the host provisioning settings")
 	}
+	if savePreparationSettings(hostCopy) {
+		dirty = true
+	}
 	status = &hostCopy.Status
 	return
 }
 
-// saveHostProvisioningSettings copies the values related to
-// provisioning that do not trigger re-provisioning into the status
-// fields of the host.
-func saveHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) (dirty bool, err error) {
-
-	// Ensure the root device hints we're going to use are stored.
-	//
-	// If the user has provided explicit root device hints, they take
-	// precedence. Otherwise use the values from the hardware profile.
-	hintSource := host.Spec.RootDeviceHints
-	if hintSource == nil {
-		hwProf, err := hardware.GetProfile(host.HardwareProfile())
-		if err != nil {
-			return false, errors.Wrap(err, "Could not update root device hints")
-		}
-		hintSource = &hwProf.RootDeviceHints
-	}
-	if (hintSource != nil && host.Status.Provisioning.RootDeviceHints == nil) || *hintSource != *(host.Status.Provisioning.RootDeviceHints) {
-		host.Status.Provisioning.RootDeviceHints = hintSource
-		dirty = true
-	}
-
+// savePreparationSettings copies the values that are configured during host
+// preparation
+func savePreparationSettings(host *metal3v1alpha1.BareMetalHost) (dirty bool) {
 	// Copy RAID settings
 	if host.Spec.RAID != host.Status.Provisioning.RAID {
 		// If RAID settings is nil, remove saved settings,
@@ -1106,7 +1090,7 @@ func saveHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) (dirty boo
 			} else {
 				// If hardware RAID has been saved, remove it.
 				if len(host.Status.Provisioning.RAID.HardwareRAIDVolumes) != 0 {
-					host.Status.Provisioning.RAID.HardwareRAIDVolumes = nil
+					host.Status.Provisioning.RAID.HardwareRAIDVolumes = []metal3v1alpha1.HardwareRAIDVolume{}
 					dirty = true
 				}
 				// Compare software RAID settings
@@ -1124,6 +1108,37 @@ func saveHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) (dirty boo
 		dirty = true
 	}
 
+	return
+}
+
+// clearPreparationSettings removes the values that are configured during host
+// preparation
+func clearPreparationSettings(host *metal3v1alpha1.BareMetalHost) {
+	host.Status.Provisioning.RootDeviceHints = nil
+	host.Status.Provisioning.RAID = nil
+	host.Status.Provisioning.Firmware = nil
+}
+
+// saveHostProvisioningSettings copies the values related to
+// provisioning that do not trigger re-provisioning into the status
+// fields of the host.
+func saveHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) (dirty bool, err error) {
+	// Ensure the root device hints we're going to use are stored.
+	//
+	// If the user has provided explicit root device hints, they take
+	// precedence. Otherwise use the values from the hardware profile.
+	hintSource := host.Spec.RootDeviceHints
+	if hintSource == nil {
+		hwProf, err := hardware.GetProfile(host.HardwareProfile())
+		if err != nil {
+			return false, errors.Wrap(err, "Could not update root device hints")
+		}
+		hintSource = &hwProf.RootDeviceHints
+	}
+	if (hintSource != nil && host.Status.Provisioning.RootDeviceHints == nil) || *hintSource != *(host.Status.Provisioning.RootDeviceHints) {
+		host.Status.Provisioning.RootDeviceHints = hintSource
+		dirty = true
+	}
 	return
 }
 

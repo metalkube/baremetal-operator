@@ -3,6 +3,7 @@ package ironic
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -633,6 +634,17 @@ func (p *ironicProvisioner) ValidateManagementAccess(data provisioner.Management
 	if !success {
 		return
 	}
+
+	if data.CurrentRAIDConfig != nil && bmcAccess.RAIDInterface() != "no-raid" {
+		// Set target raid configuration
+		err = setTargetRAIDCfg(p, ironicNode, data.CurrentRAIDConfig, false)
+		if err != nil {
+			result, err = transientError(err)
+			return
+		}
+		// TODO: set current raid configuration also/instead?
+	}
+
 	// ironicNode, err = nodes.Get(p.client, p.status.ID).Extract()
 	// if err != nil {
 	// 	return result, errors.Wrap(err, "failed to get provisioning state in ironic")
@@ -1110,30 +1122,34 @@ func (p *ironicProvisioner) ironicHasSameImage(ironicNode *nodes.Node, image met
 func (p *ironicProvisioner) buildManualCleaningSteps(bmcAccess bmc.AccessDetails, data provisioner.PrepareData) (cleanSteps []nodes.CleanStep, err error) {
 	// Build raid clean steps
 	if bmcAccess.RAIDInterface() != "no-raid" {
-		cleanSteps = append(cleanSteps, BuildRAIDCleanSteps(data.RAIDConfig)...)
+		cleanSteps = append(cleanSteps, BuildRAIDCleanSteps(data)...)
 	} else if data.RAIDConfig != nil {
 		return nil, fmt.Errorf("RAID settings are defined, but the node's driver %s does not support RAID", bmcAccess.Driver())
 	}
 
 	// Build bios clean steps
-	settings, err := bmcAccess.BuildBIOSSettings(data.FirmwareConfig)
-	if err != nil {
-		return nil, err
-	}
-	if len(settings) != 0 {
-		cleanSteps = append(
-			cleanSteps,
-			nodes.CleanStep{
-				Interface: "bios",
-				Step:      "apply_configuration",
-				Args: map[string]interface{}{
-					"settings": settings,
+	if data.PreviousError ||
+		!reflect.DeepEqual(
+			data.FirmwareConfig,
+			data.ExistingSettings.FirmwareConfig,
+		) {
+		settings, err := bmcAccess.BuildBIOSSettings(data.FirmwareConfig)
+		if err != nil {
+			return nil, err
+		}
+		if len(settings) != 0 {
+			cleanSteps = append(
+				cleanSteps,
+				nodes.CleanStep{
+					Interface: "bios",
+					Step:      "apply_configuration",
+					Args: map[string]interface{}{
+						"settings": settings,
+					},
 				},
-			},
-		)
+			)
+		}
 	}
-
-	// TODO: Add manual cleaning steps for host configuration
 
 	return
 }
@@ -1141,7 +1157,7 @@ func (p *ironicProvisioner) buildManualCleaningSteps(bmcAccess bmc.AccessDetails
 func (p *ironicProvisioner) startManualCleaning(bmcAccess bmc.AccessDetails, ironicNode *nodes.Node, data provisioner.PrepareData) (success bool, result provisioner.Result, err error) {
 	if bmcAccess.RAIDInterface() != "no-raid" {
 		// Set raid configuration
-		err = setTargetRAIDCfg(p, ironicNode, data)
+		err = setTargetRAIDCfg(p, ironicNode, data.RAIDConfig, data.HasRootDeviceHints)
 		if err != nil {
 			result, err = transientError(err)
 			return

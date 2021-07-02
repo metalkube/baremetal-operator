@@ -276,7 +276,8 @@ type SoftwareRAIDVolume struct {
 // RAIDConfig contains the configuration that are required to config RAID in Bare Metal server
 type RAIDConfig struct {
 	// The list of logical disks for hardware RAID, if rootDeviceHints isn't used, first volume is root volume.
-	HardwareRAIDVolumes []HardwareRAIDVolume `json:"hardwareRAIDVolumes,omitempty"`
+	// +optional
+	HardwareRAIDVolumes []HardwareRAIDVolume `json:"hardwareRAIDVolumes"`
 
 	// The list of logical disks for software RAID, if rootDeviceHints isn't used, first volume is root volume.
 	// If HardwareRAIDVolumes is set this item will be invalid.

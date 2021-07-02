@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"time"
 
+    apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -385,6 +386,10 @@ type BareMetalHostSpec struct {
 	// +kubebuilder:default:=metadata
 	// +kubebuilder:validation:Optional
 	AutomatedCleaningMode AutomatedCleaningMode `json:"automatedCleaningMode,omitempty"`
+
+    // Provisioner passthrouth
+    // +optional
+    ProvisionerPassthrough apiextensions.JSON `json:"provisionerPassthrough,omitempty"`
 }
 
 // AutomatedCleaningMode is the interface to enable/disable automated cleaning

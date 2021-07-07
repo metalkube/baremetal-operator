@@ -83,7 +83,7 @@ func (a *iRMCAccessDetails) PowerInterface() string {
 }
 
 func (a *iRMCAccessDetails) RAIDInterface() string {
-	return "no-raid"
+	return "irmc"
 }
 
 func (a *iRMCAccessDetails) VendorInterface() string {

@@ -2,6 +2,7 @@ package ironic
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/gophercloud/gophercloud/openstack/baremetal/v1/nodes"
 
@@ -13,11 +14,16 @@ import (
 )
 
 // setTargetRAIDCfg set the RAID settings to the ironic Node for RAID configuration steps
-func setTargetRAIDCfg(p *ironicProvisioner, ironicNode *nodes.Node, data provisioner.PrepareData) (err error) {
+func setTargetRAIDCfg(p *ironicProvisioner, raidInterface string, ironicNode *nodes.Node, data provisioner.PrepareData) (err error) {
+	err = checkRAIDConfigure(raidInterface, data.TargetRAIDConfig)
+	if err != nil {
+		return err
+	}
+
 	var logicalDisks []nodes.LogicalDisk
 
 	// Build target for RAID configuration steps
-	logicalDisks, err = BuildTargetRAIDCfg(data.RAIDConfig)
+	logicalDisks, err = BuildTargetRAIDCfg(data.TargetRAIDConfig)
 	if len(logicalDisks) == 0 || err != nil {
 		return
 	}
@@ -138,7 +144,57 @@ func buildTargetSoftwareRAIDCfg(volumes []metal3v1alpha1.SoftwareRAIDVolume) (lo
 }
 
 // BuildRAIDCleanSteps build the clean steps for RAID configuration from BaremetalHost spec
-func BuildRAIDCleanSteps(raid *metal3v1alpha1.RAIDConfig) (cleanSteps []nodes.CleanStep) {
+func BuildRAIDCleanSteps(raidInterface string, target *metal3v1alpha1.RAIDConfig, existed *metal3v1alpha1.RAIDConfig) (cleanSteps []nodes.CleanStep, err error) {
+	err = checkRAIDConfigure(raidInterface, target)
+	if err != nil {
+		return nil, err
+	}
+
+	// No RAID
+	if raidInterface == "no-raid" {
+		return
+	}
+
+	// Software RAID
+	if raidInterface == "agent" {
+		cleanSteps = append(
+			cleanSteps,
+			[]nodes.CleanStep{
+				{
+					Interface: "raid",
+					Step:      "delete_configuration",
+				},
+				{
+					Interface: "deploy",
+					Step:      "erase_devices_metadata",
+				},
+			}...,
+		)
+		if target == nil || len(target.SoftwareRAIDVolumes) == 0 {
+			return
+		}
+		cleanSteps = append(
+			cleanSteps,
+			nodes.CleanStep{
+				Interface: "raid",
+				Step:      "create_configuration",
+			},
+		)
+		return
+	}
+
+	// Hardware RAID
+	// Ignore SoftwareRAIDVolumes
+	if target != nil {
+		target.SoftwareRAIDVolumes = nil
+	}
+	if existed != nil {
+		existed.SoftwareRAIDVolumes = nil
+	}
+	if reflect.DeepEqual(target, existed) {
+		return
+	}
+
 	// Add ‘delete_configuration’ before ‘create_configuration’ to make sure
 	// that only the desired logical disks exist in the system after manual cleaning.
 	cleanSteps = append(
@@ -148,19 +204,12 @@ func BuildRAIDCleanSteps(raid *metal3v1alpha1.RAIDConfig) (cleanSteps []nodes.Cl
 			Step:      "delete_configuration",
 		},
 	)
-	// If not configure raid, only need to clear old configuration
-	if raid == nil || (len(raid.HardwareRAIDVolumes) == 0 && len(raid.SoftwareRAIDVolumes) == 0) {
+
+	// If hardware raid configuration is empty, only need to clear old configuration
+	if target == nil || len(target.HardwareRAIDVolumes) == 0 {
 		return
 	}
-	if len(raid.HardwareRAIDVolumes) == 0 && len(raid.SoftwareRAIDVolumes) != 0 {
-		cleanSteps = append(
-			cleanSteps,
-			nodes.CleanStep{
-				Interface: "deploy",
-				Step:      "erase_devices_metadata",
-			},
-		)
-	}
+
 	// ‘create_configuration’ doesn’t remove existing disks. It is recommended
 	// that only the desired logical disks exist in the system after manual cleaning.
 	cleanSteps = append(
@@ -171,4 +220,20 @@ func BuildRAIDCleanSteps(raid *metal3v1alpha1.RAIDConfig) (cleanSteps []nodes.Cl
 		},
 	)
 	return
+}
+
+func checkRAIDConfigure(raidInterface string, raid *metal3v1alpha1.RAIDConfig) error {
+	if raidInterface == "no-raid" && raid != nil && (len(raid.HardwareRAIDVolumes) != 0 || len(raid.SoftwareRAIDVolumes) != 0) {
+		return fmt.Errorf("raid settings are defined, but the node's driver %s does not support RAID", raidInterface)
+	}
+
+	if raidInterface == "agent" && raid != nil && len(raid.HardwareRAIDVolumes) != 0 {
+		return fmt.Errorf("node's driver %s does not support hardware RAID", raidInterface)
+	}
+
+	if raidInterface != "agent" && raid != nil && len(raid.HardwareRAIDVolumes) == 0 && len(raid.SoftwareRAIDVolumes) != 0 {
+		return fmt.Errorf("node's driver %s does not support software RAID", raidInterface)
+	}
+
+	return nil
 }

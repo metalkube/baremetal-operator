@@ -155,7 +155,8 @@ func (a *redfishiDracAccessDetails) RAIDInterface() string {
 }
 
 func (a *redfishiDracAccessDetails) VendorInterface() string {
-	return "no-vendor"
+	// NOTE(dtantsur): the idrac hardware type defaults to WSMAN vendor, we need to use the Redfish implementation.
+	return "idrac-redfish"
 }
 
 func (a *redfishiDracAccessDetails) BuildBIOSSettings(firmwareConfig *metal3v1alpha1.FirmwareConfig) (settings []map[string]string, err error) {

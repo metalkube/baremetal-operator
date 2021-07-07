@@ -87,7 +87,8 @@ func (a *redfishiDracVirtualMediaAccessDetails) RAIDInterface() string {
 }
 
 func (a *redfishiDracVirtualMediaAccessDetails) VendorInterface() string {
-	return "no-vendor"
+	// NOTE(dtantsur): the idrac hardware type defaults to WSMAN vendor, we need to use the Redfish implementation.
+	return "idrac-redfish"
 }
 
 func (a *redfishiDracVirtualMediaAccessDetails) SupportsSecureBoot() bool {

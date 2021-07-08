@@ -1583,7 +1583,7 @@ webhooks:
       namespace: baremetal-operator-system
       path: /validate-metal3-io-v1alpha1-baremetalhost
   failurePolicy: Fail
-  name: vbaremetalhost.kb.io
+  name: metal3.io
   rules:
   - apiGroups:
     - metal3.io

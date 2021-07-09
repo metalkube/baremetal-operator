@@ -5,18 +5,17 @@ metadata:
   namespace: system
   labels:
     control-plane: controller-manager
-    webhook: controller-manager
+    webhook: metal3-io-v1alpha1-baremetalhost
 spec:
   selector:
     matchLabels:
       control-plane: controller-manager
-      webhook: controller-manager
   replicas: 1
   template:
     metadata:
       labels:
         control-plane: controller-manager
-        webhook: controller-manager
+        webhook: metal3-io-v1alpha1-baremetalhost
     spec:
       containers:
       - command:

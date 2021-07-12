@@ -185,7 +185,35 @@ The sub-fields are:
     GiB. If unspecified or set to 0, the maximum capacity of disk will be
     used for logical disk.
 
-**NOTE:** Currently the 'raid' field is only supported by ilo5/idrac.
+If you do not set the RAID field, we will keep the current RAID configuration.
+
+You can set the `hardwareRAIDVolume` as an empty slice to clear the hardware
+RAID configuration, for example:
+
+```yaml
+spec:
+   raid:
+     hardwareRAIDVolume: []
+```
+
+**NOTE:** Currently the 'raid' field is only supported by ilo5/idrac/irmc.
+
+**NOTE:** Software RAID will always be deleted.
+
+**NOTE:** If you got following error message:
+
+1. raid settings are defined, but the node's driver %s does not support RAID.
+2. node's driver %s does not support hardware RAID.
+3. node's driver %s does not support software RAID.
+
+You can solve it by:
+
+1. Keep raid field is nil.
+2. Keep hardwareRAIDVolumes field is nil.
+3. Keep softwareRAIDVolumes field is nil.
+
+If the error message you get isn't included the above, you may need to check
+whether the BM has a RAID controller and keep the raid field blank.
 
 #### firmware
 

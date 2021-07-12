@@ -87,6 +87,10 @@ func (a *testAccessDetails) SupportsSecureBoot() bool {
 	return false
 }
 
+func (a *testAccessDetails) SupportsISOPreprovisioningImage() bool {
+	return false
+}
+
 func (a *testAccessDetails) BuildBIOSSettings(firmwareConfig *metal3v1alpha1.FirmwareConfig) (settings []map[string]string, err error) {
 	return nil, nil
 }

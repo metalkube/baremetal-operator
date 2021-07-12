@@ -114,6 +114,10 @@ func (p *demoProvisioner) ValidateManagementAccess(data provisioner.ManagementAc
 	return
 }
 
+func (p *demoProvisioner) PreprovisioningImageFormats() ([]metal3v1alpha1.ImageFormat, error) {
+	return nil, nil
+}
+
 // InspectHardware updates the HardwareDetails field of the host with
 // details of devices discovered on the hardware. It may be called
 // multiple times, and should return true for its dirty flag until the

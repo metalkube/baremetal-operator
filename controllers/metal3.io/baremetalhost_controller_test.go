@@ -705,7 +705,7 @@ func TestSecretUpdateOwnerRefAndEnvironmentLabelOnStartup(t *testing.T) {
 	assert.True(t, *secret.OwnerReferences[0].Controller)
 	assert.True(t, *secret.OwnerReferences[0].BlockOwnerDeletion)
 
-	assert.Equal(t, LabelEnvironmentValue, secret.Labels[LabelEnvironmentName])
+	assert.Equal(t, "baremetal", secret.Labels["environment.metal3.io"])
 
 }
 

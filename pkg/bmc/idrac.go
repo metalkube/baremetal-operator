@@ -102,6 +102,10 @@ func (a *iDracAccessDetails) SupportsSecureBoot() bool {
 	return false
 }
 
+func (a *iDracAccessDetails) SupportsISOPreprovisioningImage() bool {
+	return false
+}
+
 func (a *iDracAccessDetails) BuildBIOSSettings(firmwareConfig *metal3v1alpha1.FirmwareConfig) (settings []map[string]string, err error) {
 	if firmwareConfig == nil {
 		return nil, nil

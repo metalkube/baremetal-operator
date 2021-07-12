@@ -240,7 +240,8 @@ spec:
                 type: object
               metaData:
                 description: MetaData holds the reference to the Secret containing
-                  host metadata (e.g. meta_data.json which is passed to Config Drive).
+                  host metadata (e.g. meta_data.json) which is passed to the Config
+                  Drive.
                 properties:
                   name:
                     description: Name is unique within a namespace to reference a
@@ -253,8 +254,8 @@ spec:
                 type: object
               networkData:
                 description: NetworkData holds the reference to the Secret containing
-                  network configuration (e.g content of network_data.json which is
-                  passed to Config Drive).
+                  network configuration (e.g content of network_data.json) which is
+                  passed to the Config Drive.
                 properties:
                   name:
                     description: Name is unique within a namespace to reference a
@@ -268,6 +269,12 @@ spec:
               online:
                 description: Should the server be online?
                 type: boolean
+              preprovisioningNetworkDataName:
+                description: PreprovisioningNetworkDataName is the name of the Secret
+                  in the local namespace containing network configuration (e.g content
+                  of network_data.json) which is passed to the preprovisioning image,
+                  and to the Config Drive if not overridden by specifying NetworkData.
+                type: string
               raid:
                 description: RAID configuration for bare metal server
                 properties:

@@ -53,6 +53,10 @@ var updatedCredentials = prometheus.NewCounter(prometheus.CounterOpts{
 	Name: "metal3_credentials_updated_total",
 	Help: "Number of times a host's credentials change",
 })
+var waitingForPreprovImage = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "metal3_waiting_for_preprov_image_total",
+	Help: "Number of times the preprovisioning image is required but not available",
+})
 var noManagementAccess = prometheus.NewCounter(prometheus.CounterOpts{
 	Name: "metal3_credentials_no_management_access_total",
 	Help: "Number of times a host management interface is unavailable",

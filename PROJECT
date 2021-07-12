@@ -4,4 +4,7 @@ resources:
 - group: metal3.io
   kind: BareMetalHost
   version: v1alpha1
+- group: metal3.io
+  kind: PreprovisioningImage
+  version: v1alpha1
 version: "2"

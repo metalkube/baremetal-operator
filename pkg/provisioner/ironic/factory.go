@@ -26,12 +26,12 @@ type ironicProvisionerFactory struct {
 	clientInspector *gophercloud.ServiceClient
 }
 
-func NewProvisionerFactory() provisioner.Factory {
+func NewProvisionerFactory(havePreprovImgBuilder bool) provisioner.Factory {
 	factory := ironicProvisionerFactory{}
 
 	factory.log = logz.New().WithName("provisioner").WithName("ironic")
 
-	err := factory.init()
+	err := factory.init(havePreprovImgBuilder)
 	if err != nil {
 		factory.log.Error(err, "Cannot start ironic provisioner")
 		os.Exit(1)
@@ -39,13 +39,13 @@ func NewProvisionerFactory() provisioner.Factory {
 	return factory
 }
 
-func (f *ironicProvisionerFactory) init() error {
+func (f *ironicProvisionerFactory) init(havePreprovImgBuilder bool) error {
 	ironicAuth, inspectorAuth, err := clients.LoadAuth()
 	if err != nil {
 		return err
 	}
 
-	f.config, err = loadConfigFromEnv()
+	f.config, err = loadConfigFromEnv(havePreprovImgBuilder)
 	if err != nil {
 		return err
 	}
@@ -114,19 +114,26 @@ func (f ironicProvisionerFactory) NewProvisioner(hostData provisioner.HostData, 
 	return f.ironicProvisioner(hostData, publisher)
 }
 
-func loadConfigFromEnv() (ironicConfig, error) {
-	c := ironicConfig{}
+func loadConfigFromEnv(havePreprovImgBuilder bool) (ironicConfig, error) {
+	c := ironicConfig{
+		havePreprovImgBuilder: havePreprovImgBuilder,
+	}
 
 	c.deployKernelURL = os.Getenv("DEPLOY_KERNEL_URL")
 	c.deployRamdiskURL = os.Getenv("DEPLOY_RAMDISK_URL")
 	c.deployISOURL = os.Getenv("DEPLOY_ISO_URL")
-	if c.deployISOURL == "" &&
-		(c.deployKernelURL == "" || c.deployRamdiskURL == "") {
-		return c, errors.New("Either DEPLOY_KERNEL_URL and DEPLOY_RAMDISK_URL or DEPLOY_ISO_URL must be set")
+	if !havePreprovImgBuilder {
+		if c.deployISOURL == "" &&
+			(c.deployKernelURL == "" || c.deployRamdiskURL == "") {
+			return c, errors.New("Either DEPLOY_KERNEL_URL and DEPLOY_RAMDISK_URL or DEPLOY_ISO_URL must be set")
+		}
+		if (c.deployKernelURL == "" && c.deployRamdiskURL != "") ||
+			(c.deployKernelURL != "" && c.deployRamdiskURL == "") {
+			return c, errors.New("DEPLOY_KERNEL_URL and DEPLOY_RAMDISK_URL can only be set together")
+		}
 	}
-	if (c.deployKernelURL == "" && c.deployRamdiskURL != "") ||
-		(c.deployKernelURL != "" && c.deployRamdiskURL == "") {
-		return c, errors.New("DEPLOY_KERNEL_URL and DEPLOY_RAMDISK_URL can only be set together")
+	if c.deployKernelURL == "" && c.deployRamdiskURL != "" {
+		return c, errors.New("DEPLOY_RAMDISK_URL requires DEPLOY_KERNEL_URL to be set also")
 	}
 
 	c.maxBusyHosts = 20

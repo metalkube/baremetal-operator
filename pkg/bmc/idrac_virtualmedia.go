@@ -94,6 +94,10 @@ func (a *redfishiDracVirtualMediaAccessDetails) SupportsSecureBoot() bool {
 	return true
 }
 
+func (a *redfishiDracVirtualMediaAccessDetails) SupportsISOPreprovisioningImage() bool {
+	return true
+}
+
 func (a *redfishiDracVirtualMediaAccessDetails) BuildBIOSSettings(firmwareConfig *metal3v1alpha1.FirmwareConfig) (settings []map[string]string, err error) {
 	if firmwareConfig != nil {
 		return nil, fmt.Errorf("firmware settings for %s are not supported", a.Driver())

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	metal3v1alpha1 "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -66,11 +67,11 @@ func TestLabelSecrets(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			host := newHost("host", tc.hostSpec)
 			c := fakeclient.NewClientBuilder().Build()
+			baselog := ctrl.Log.WithName("controllers").WithName("BareMetalHost")
 			hcd := &hostConfigData{
-				host:      host,
-				log:       ctrl.Log.WithName("controllers").WithName("BareMetalHost").WithName("host_config_data"),
-				client:    c,
-				apiReader: c,
+				host:          host,
+				log:           baselog.WithName("host_config_data"),
+				secretManager: secretutils.NewSecretManager(baselog, c, c),
 			}
 
 			secret := newSecret(tc.name, map[string]string{"value": "somedata"})
@@ -81,7 +82,7 @@ func TestLabelSecrets(t *testing.T) {
 
 			actualSecret := &corev1.Secret{}
 			c.Get(context.TODO(), types.NamespacedName{Name: tc.name, Namespace: namespace}, actualSecret)
-			assert.Equal(t, actualSecret.Labels[LabelEnvironmentName], LabelEnvironmentValue)
+			assert.Equal(t, "baremetal", actualSecret.Labels["environment.metal3.io"])
 		})
 	}
 
@@ -91,16 +92,17 @@ func TestProvisionWithHostConfig(t *testing.T) {
 	testBMCSecret := newBMCCredsSecret(defaultSecretName, "User", "Pass")
 
 	testCases := []struct {
-		Scenario            string
-		Host                *metal3v1alpha1.BareMetalHost
-		UserDataSecret      *corev1.Secret
-		NetworkDataSecret   *corev1.Secret
-		ExpectedUserData    string
-		ErrUserData         bool
-		ExpectedNetworkData string
-		ErrNetworkData      bool
-		ExpectedMetaData    string
-		ErrMetaData         bool
+		Scenario                 string
+		Host                     *metal3v1alpha1.BareMetalHost
+		UserDataSecret           *corev1.Secret
+		PreprovNetworkDataSecret *corev1.Secret
+		NetworkDataSecret        *corev1.Secret
+		ExpectedUserData         string
+		ErrUserData              bool
+		ExpectedNetworkData      string
+		ErrNetworkData           bool
+		ExpectedMetaData         string
+		ErrMetaData              bool
 	}{
 		{
 			Scenario: "host with user data only",
@@ -137,6 +139,42 @@ func TestProvisionWithHostConfig(t *testing.T) {
 			ExpectedUserData:    base64.StdEncoding.EncodeToString([]byte("somedata")),
 			ErrUserData:         false,
 			ExpectedNetworkData: "",
+			ErrNetworkData:      false,
+		},
+		{
+			Scenario: "host with preprov network data only",
+			Host: newHost("host-user-data",
+				&metal3v1alpha1.BareMetalHostSpec{
+					BMC: metal3v1alpha1.BMCDetails{
+						Address:         "ipmi://192.168.122.1:6233",
+						CredentialsName: defaultSecretName,
+					},
+					PreprovisioningNetworkDataName: "net-data",
+				}),
+			NetworkDataSecret:   newSecret("net-data", map[string]string{"networkData": "key: value"}),
+			ExpectedUserData:    "",
+			ErrUserData:         false,
+			ExpectedNetworkData: base64.StdEncoding.EncodeToString([]byte("key: value")),
+			ErrNetworkData:      false,
+		},
+		{
+			Scenario: "host with preprov and regular network data",
+			Host: newHost("host-user-data",
+				&metal3v1alpha1.BareMetalHostSpec{
+					BMC: metal3v1alpha1.BMCDetails{
+						Address:         "ipmi://192.168.122.1:6233",
+						CredentialsName: defaultSecretName,
+					},
+					PreprovisioningNetworkDataName: "preprov-net-data",
+					NetworkData: &corev1.SecretReference{
+						Name:      "net-data",
+						Namespace: namespace,
+					},
+				}),
+			NetworkDataSecret:   newSecret("net-data", map[string]string{"networkData": "key: value"}),
+			ExpectedUserData:    "",
+			ErrUserData:         false,
+			ExpectedNetworkData: base64.StdEncoding.EncodeToString([]byte("key: value")),
 			ErrNetworkData:      false,
 		},
 		{
@@ -298,11 +336,11 @@ func TestProvisionWithHostConfig(t *testing.T) {
 			c.Create(goctx.TODO(), testBMCSecret)
 			c.Create(goctx.TODO(), tc.UserDataSecret)
 			c.Create(goctx.TODO(), tc.NetworkDataSecret)
+			baselog := ctrl.Log.WithName("controllers").WithName("BareMetalHost")
 			hcd := &hostConfigData{
-				host:      tc.Host,
-				log:       ctrl.Log.WithName("controllers").WithName("BareMetalHost").WithName("host_config_data"),
-				client:    c,
-				apiReader: c,
+				host:          tc.Host,
+				log:           baselog.WithName("host_config_data"),
+				secretManager: secretutils.NewSecretManager(baselog, c, c),
 			}
 
 			actualUserData, err := hcd.UserData()

@@ -306,6 +306,14 @@ func TestValidateManagementAccessExistingNodeContinue(t *testing.T) {
 				UUID:           "uuid", // to match status in host
 				ProvisionState: string(status),
 				AutomatedClean: &clean,
+				DriverInfo: map[string]interface{}{
+					"deploy_kernel":  "http://deploy.test/ipa.kernel",
+					"deploy_ramdisk": "http://deploy.test/ipa.initramfs",
+					"test_address":   "test.bmc",
+					"test_username":  "",
+					"test_password":  "",
+					"test_port":      "42",
+				},
 			}).NodeUpdate(nodes.Node{
 				UUID: "uuid",
 			})
@@ -392,6 +400,14 @@ func TestValidateManagementAccessExistingSteadyStateNoUpdate(t *testing.T) {
 				InstanceUUID:    string(host.UID),
 				DeployInterface: imageType.DeployInterface,
 				InstanceInfo:    imageType.InstanceInfo,
+				DriverInfo: map[string]interface{}{
+					"deploy_kernel":  "http://deploy.test/ipa.kernel",
+					"deploy_ramdisk": "http://deploy.test/ipa.initramfs",
+					"test_address":   "test.bmc",
+					"test_username":  "",
+					"test_password":  "",
+					"test_port":      "42",
+				},
 			}).NodeUpdate(nodes.Node{
 				UUID: "uuid",
 			})
@@ -439,6 +455,14 @@ func TestValidateManagementAccessExistingNodeWaiting(t *testing.T) {
 				Name:           host.Namespace + nameSeparator + host.Name,
 				UUID:           "uuid", // to match status in host
 				ProvisionState: string(status),
+				DriverInfo: map[string]interface{}{
+					"deploy_kernel":  "http://deploy.test/ipa.kernel",
+					"deploy_ramdisk": "http://deploy.test/ipa.initramfs",
+					"test_address":   "test.bmc",
+					"test_username":  "",
+					"test_password":  "",
+					"test_port":      "42",
+				},
 			}
 			ironic := testserver.NewIronic(t).Ready().CreateNodes(createCallback).Node(node).NodeUpdate(nodes.Node{
 				UUID: "uuid",

@@ -1,0 +1,7 @@
+apiVersion: metal3.io/v1alpha1
+kind: PreprovisioningImage
+metadata:
+  name: preprovisioningimage-sample
+spec:
+  # Add fields here
+  foo: bar

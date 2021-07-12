@@ -22,8 +22,6 @@ import (
 	"os"
 	"runtime"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -33,12 +31,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	metal3iov1alpha1 "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
-	controllers "github.com/metal3-io/baremetal-operator/controllers/metal3.io"
 	metal3iocontroller "github.com/metal3-io/baremetal-operator/controllers/metal3.io"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/demo"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/fixture"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic"
+	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
 	"github.com/metal3-io/baremetal-operator/pkg/version"
 	// +kubebuilder:scaffold:imports
 )
@@ -80,6 +78,7 @@ func main() {
 	var watchNamespace string
 	var metricsAddr string
 	var enableLeaderElection bool
+	var preprovImgEnable bool
 	var devLogging bool
 	var runInTestMode bool
 	var runInDemoMode bool
@@ -95,6 +94,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&preprovImgEnable, "build-preprov-image", false, "enable integration with the PreprovisioningImage API")
 	flag.BoolVar(&devLogging, "dev", false, "enable developer logging")
 	flag.BoolVar(&runInTestMode, "test-mode", false, "disable ironic communication")
 	flag.BoolVar(&runInDemoMode, "demo-mode", false,
@@ -123,11 +123,7 @@ func main() {
 		HealthProbeBindAddress:  healthAddr,
 
 		NewCache: cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&corev1.Secret{}: {
-					Label: labels.SelectorFromSet(labels.Set{controllers.LabelEnvironmentName: controllers.LabelEnvironmentValue}),
-				},
-			},
+			SelectorsByObject: secretutils.AddSecretSelector(nil),
 		}),
 	})
 	if err != nil {
@@ -143,7 +139,7 @@ func main() {
 		ctrl.Log.Info("using demo provisioner")
 		provisionerFactory = &demo.Demo{}
 	} else {
-		provisionerFactory = ironic.NewProvisionerFactory()
+		provisionerFactory = ironic.NewProvisionerFactory(preprovImgEnable)
 	}
 
 	if err = (&metal3iocontroller.BareMetalHostReconciler{
@@ -156,9 +152,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupChecks(mgr)
-
+	if preprovImgEnable {
+		imgReconciler := metal3iocontroller.PreprovisioningImageReconciler{
+			Client:    mgr.GetClient(),
+			Log:       ctrl.Log.WithName("controllers").WithName("PreprovisioningImage"),
+			APIReader: mgr.GetAPIReader(),
+			Scheme:    mgr.GetScheme(),
+		}
+		if imgReconciler.CanStart() {
+			if err = (&imgReconciler).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "PreprovisioningImage")
+				os.Exit(1)
+			}
+		}
+	}
 	// +kubebuilder:scaffold:builder
+
+	setupChecks(mgr)
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

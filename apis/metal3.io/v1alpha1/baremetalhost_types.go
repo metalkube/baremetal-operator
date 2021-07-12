@@ -361,13 +361,19 @@ type BareMetalHostSpec struct {
 	// data to be passed to the host before it boots.
 	UserData *corev1.SecretReference `json:"userData,omitempty"`
 
+	// PreprovisioningNetworkDataName is the name of the Secret in the
+	// local namespace containing network configuration (e.g content of
+	// network_data.json) which is passed to the preprovisioning image, and to
+	// the Config Drive if not overridden by specifying NetworkData.
+	PreprovisioningNetworkDataName string `json:"preprovisioningNetworkDataName,omitempty"`
+
 	// NetworkData holds the reference to the Secret containing network
-	// configuration (e.g content of network_data.json which is passed
-	// to Config Drive).
+	// configuration (e.g content of network_data.json) which is passed
+	// to the Config Drive.
 	NetworkData *corev1.SecretReference `json:"networkData,omitempty"`
 
 	// MetaData holds the reference to the Secret containing host metadata
-	// (e.g. meta_data.json which is passed to Config Drive).
+	// (e.g. meta_data.json) which is passed to the Config Drive.
 	MetaData *corev1.SecretReference `json:"metaData,omitempty"`
 
 	// Description is a human-entered text used to help identify the host

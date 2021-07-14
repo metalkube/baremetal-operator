@@ -18,8 +18,7 @@ COVER_PROFILE = cover.out
 BIN_DIR := bin
 
 CRD_OPTIONS ?= "crd:trivialVersions=false,allowDangerousTypes=true,crdVersions=v1"
-GOLANGCI_LINT ?= GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) go run github.com/golangci/golangci-lint/cmd/golangci-lint
-KUSTOMIZE ?= go run sigs.k8s.io/kustomize/kustomize/v3
+KUSTOMIZE ?= go run -modfile=hack/tools/go.mod sigs.k8s.io/kustomize/kustomize/v3
 
 # See pkg/version.go for details
 SOURCE_GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
@@ -83,9 +82,12 @@ unit-verbose: ## Run unit tests with verbose output
 .PHONY: linters
 linters: lint generate-check fmt-check
 
+tools/bin/golangci-lint: hack/tools/go.mod
+	go build -o $@ -modfile=$< github.com/golangci/golangci-lint/cmd/golangci-lint
+
 .PHONY: lint
-lint:
-	$(GOLANGCI_LINT) run
+lint: tools/bin/golangci-lint
+	$< run
 
 .PHONY: manifest-lint
 manifest-lint: ## Run manifest validation
@@ -127,8 +129,8 @@ deploy: manifests ## Deploy controller in the configured Kubernetes cluster in ~
 	cd config/manager && kustomize edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
-tools/bin/controller-gen: go.mod
-	go build -o $@ sigs.k8s.io/controller-tools/cmd/controller-gen
+tools/bin/controller-gen: hack/tools/go.mod
+	go build -o $@ -modfile=$< sigs.k8s.io/controller-tools/cmd/controller-gen
 
 .PHONY: manifests
 manifests: tools/bin/controller-gen ## Generate manifests e.g. CRD, RBAC etc.

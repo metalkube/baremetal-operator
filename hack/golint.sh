@@ -12,7 +12,7 @@ if [ "${IS_CONTAINER}" != "false" ]; then
 else
   "${CONTAINER_RUNTIME}" run --rm \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/go/src/github.com/metal3-io/baremetal-operator:ro,z" \
+    --volume "${PWD}:/go/src/github.com/metal3-io/baremetal-operator:rw,z" \
     --entrypoint sh \
     --workdir /go/src/github.com/metal3-io/baremetal-operator \
     quay.io/metal3-io/golint:latest \

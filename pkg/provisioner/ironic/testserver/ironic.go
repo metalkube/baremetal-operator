@@ -270,3 +270,40 @@ func (m *IronicMock) Nodes(allNodes []nodes.Node) *IronicMock {
 	m.ResponseJSON(m.buildURL("/v1/nodes", http.MethodGet), resp)
 	return m
 }
+
+// ClearDatabase simulates the loss of the Ironic database
+//
+// Database clearing is simulated by setting all registered non-POST handlers to
+// return a 404 error.  Both regular handlers, and default handlers are
+// affected.
+func (m *IronicMock) ClearDatabase() {
+	m.t.Log("clearing ironic database")
+
+	// First, set all default handlers to reply with 404
+	for i, resp := range m.defaultResponses {
+		// POST requests should still succeed when the database is empty
+		if resp.method == "POST" {
+			continue
+		}
+
+		m.defaultResponses[i].code = http.StatusNotFound
+		m.defaultResponses[i].payload = ""
+	}
+
+	// Second, set named handlers to reply with 404
+	for url, methodMap := range m.responsesByMethod {
+
+		for method := range methodMap {
+			// POST requests should still succeed when the database is empty
+			if method == "POST" {
+				continue
+			}
+
+			m.responsesByMethod[url][method] = response{
+				code:    http.StatusNotFound,
+				payload: "",
+			}
+		}
+	}
+
+}

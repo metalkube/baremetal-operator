@@ -9,6 +9,8 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 COPY apis/go.mod apis/go.mod
 COPY apis/go.sum apis/go.sum
+COPY hack/tools/go.mod hack/tools/go.mod
+COPY hack/tools/go.sum hack/tools/go.sum
 RUN go mod download
 
 COPY . .

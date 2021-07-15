@@ -1088,10 +1088,7 @@ func (p *ironicProvisioner) Prepare(data provisioner.PrepareData, unprepared boo
 			started = true
 		}
 		// Manual clean finished
-		result, err = p.changeNodeProvisionState(
-			ironicNode,
-			nodes.ProvisionStateOpts{Target: nodes.TargetProvide},
-		)
+		result, err = operationComplete()
 
 	case nodes.CleanFail:
 		// When clean failed, we need to clean host provisioning settings.

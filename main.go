@@ -158,6 +158,14 @@ func main() {
 
 	setupChecks(mgr)
 
+	if err = (&metal3iocontroller.HostFirmwareSettingsReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("HostFirmwareSettings"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "HostFirmwareSettings")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")

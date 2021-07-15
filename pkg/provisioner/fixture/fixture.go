@@ -331,3 +331,8 @@ func (p *fixtureProvisioner) IsReady() (result bool, err error) {
 
 	return p.state.BecomeReadyCounter == 0, nil
 }
+
+func (p *fixtureProvisioner) GetFirmwareSettings(includeSchema bool) (settings metal3v1alpha1.SettingsMap, schema map[string]metal3v1alpha1.SettingSchema, err error) {
+	p.log.Info("getting BIOS settings")
+	return
+}

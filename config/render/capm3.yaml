@@ -1360,6 +1360,46 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - metal3.io
+  resources:
+  - firmwareschema
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - metal3.io
+  resources:
+  - firmwareschema/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - metal3.io
+  resources:
+  - hostfirmwaresettings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - metal3.io
+  resources:
+  - hostfirmwaresettings/status
+  verbs:
+  - get
+  - patch
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

@@ -349,3 +349,9 @@ func (p *demoProvisioner) PowerOff(rebootMode metal3v1alpha1.RebootMode, force b
 func (p *demoProvisioner) IsReady() (result bool, err error) {
 	return true, nil
 }
+
+func (p *demoProvisioner) GetFirmwareSettings(includeSchema bool) (settings metal3v1alpha1.SettingsMap, schema map[string]metal3v1alpha1.SettingSchema, err error) {
+
+	p.log.Info("getting BIOS settings")
+	return
+}

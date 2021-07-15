@@ -33,6 +33,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -88,6 +89,10 @@ func (info *reconcileInfo) publishEvent(reason, message string) {
 // +kubebuilder:rbac:groups=metal3.io,resources=baremetalhosts/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
+
+// Allow for managing hostfirmwaresettings and firmwareschema
+//+kubebuilder:rbac:groups=metal3.io,resources=hostfirmwaresettings,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups=metal3.io,resources=firmwareschema,verbs=get;list;watch;create;update;patch
 
 // Reconcile handles changes to BareMetalHost resources
 func (r *BareMetalHostReconciler) Reconcile(ctx context.Context, request ctrl.Request) (result ctrl.Result, err error) {
@@ -717,6 +722,13 @@ func (r *BareMetalHostReconciler) actionInspecting(prov provisioner.Provisioner,
 		return result
 	}
 
+	// Get firmware settings and manage resources
+	err = r.storeHostFirmwareSettings(prov, info)
+	if err != nil {
+		// log but continue, failure to get settings is not an error
+		info.log.Info("could not get firmware settings for host")
+	}
+
 	clearError(info.host)
 	info.host.Status.HardwareDetails = details
 	return actionComplete{}
@@ -774,11 +786,21 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 		return actionError{err}
 	}
 
+	hfs, err := r.getHostFirmwareSettings(prov, info)
+	if err != nil {
+		return actionError{errors.Wrap(err, "error with hostFirmwareSettings")}
+	}
+
 	prepareData := provisioner.PrepareData{
 		RAIDConfig:      newStatus.Provisioning.RAID.DeepCopy(),
 		RootDeviceHints: newStatus.Provisioning.RootDeviceHints.DeepCopy(),
 		FirmwareConfig:  newStatus.Provisioning.Firmware.DeepCopy(),
 	}
+	if hfs != nil {
+		prepareData.CurrentFirmwareSettings = hfs.Status.Settings.DeepCopy()
+		prepareData.DesiredFirmwareSettings = hfs.Spec.Settings.DeepCopy()
+	}
+
 	provResult, started, err := prov.Prepare(prepareData,
 		dirty || info.host.Status.ErrorType == metal3v1alpha1.PreparationError)
 	if err != nil {
@@ -789,6 +811,11 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 		info.log.Info("handling cleaning error in controller")
 		clearHostProvisioningSettings(info.host)
 		return recordActionFailure(info, metal3v1alpha1.PreparationError, provResult.ErrorMessage)
+	}
+
+	// store settings updated after cleaning
+	if err = r.storeHostFirmwareSettings(prov, info); err != nil {
+		info.log.Info("could not store firmware settings for host after cleaning")
 	}
 
 	if dirty && started {
@@ -1159,6 +1186,242 @@ func saveHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) (dirty boo
 	}
 
 	return
+}
+
+// Get the stored firmware settings and validate the Spec settings against the schema
+func (r *BareMetalHostReconciler) getHostFirmwareSettings(prov provisioner.Provisioner, info *reconcileInfo) (hfs *metal3v1alpha1.HostFirmwareSettings, err error) {
+
+	hfs = &metal3v1alpha1.HostFirmwareSettings{}
+	if r.Get(context.TODO(), info.request.NamespacedName, hfs) != nil {
+		// Could not get settings, don't return error as settings may not have been available at provisioner
+		info.log.Info("could not get hostFirmwareSettings", "namespacename", info.request.NamespacedName)
+		return nil, nil
+	}
+
+	if hfs.Status.Settings == nil {
+		// If settings cleared after pivot, recreate map and update settings
+		hfs.Status.Settings = make(metal3v1alpha1.SettingsMap)
+
+		currentSettings, _, err := prov.GetFirmwareSettings(false)
+		if err != nil {
+			info.log.Info("could not get firmware settings from provisioner")
+			return nil, nil
+		}
+		if err = r.updateHostFirmwareSettingsFromCurrent(currentSettings, hfs, nil); err != nil {
+			return nil, err
+		}
+	}
+
+	schema := &metal3v1alpha1.FirmwareSchema{}
+	if hfs.Status.FirmwareSchema != nil {
+		if r.Get(context.TODO(), client.ObjectKey{
+			Namespace: hfs.Status.FirmwareSchema.Namespace,
+			Name:      hfs.Status.FirmwareSchema.Name}, schema) != nil {
+			info.log.Info("failed to get schema for hostFirmwareSettings", "namespacename", hfs.Status.FirmwareSchema.Namespace, "name", hfs.Status.FirmwareSchema.Name)
+			return hfs, nil
+		}
+	} else {
+		schema = nil
+	}
+
+	// Validate the Spec setting using schema, if available
+	if err = ValidateHostFirmwareSettings(hfs, schema); err != nil {
+		return nil, err
+	}
+
+	return hfs, nil
+}
+
+// Get the firmware settings from the provisioner and create hostFirmwareSettings and FirmwareSchema resources
+func (r *BareMetalHostReconciler) storeHostFirmwareSettings(prov provisioner.Provisioner, info *reconcileInfo) (err error) {
+
+	info.log.Info("hostFirmwareSettings")
+
+	// First check if there is a hostFirmwareSettings resource for this host
+	hfs := &metal3v1alpha1.HostFirmwareSettings{}
+	if err = r.Get(context.TODO(), info.request.NamespacedName, hfs); err == nil {
+		info.log.Info("found existing hostFirmwareSettings resource")
+
+		if hfs.Status.Settings == nil {
+			// If settings was cleared after pivot recreate map, it will be repopulated below
+			hfs.Status.Settings = make(metal3v1alpha1.SettingsMap)
+		}
+
+		// Only request the settings as schema was retrieved when resource is created
+		currentSettings, _, err := prov.GetFirmwareSettings(false)
+		if err != nil {
+			info.log.Info("could not get firmware settings from provisioner")
+			return err
+		}
+
+		// Update the resource with settings
+		return r.updateHostFirmwareSettingsFromCurrent(currentSettings, hfs, nil)
+	}
+	if !k8serrors.IsNotFound(err) {
+		// Error reading the object
+		return errors.Wrap(err, "could not load host firmware settings")
+	}
+
+	// Get the current settings and schema
+	currentSettings, schema, err := prov.GetFirmwareSettings(true)
+	if err != nil {
+		// If host cannot return schema attempt to just get the settings
+		currentSettings, _, err = prov.GetFirmwareSettings(false)
+		if err != nil {
+			info.log.Info("could not get firmware settings from provisioner")
+			return err
+		}
+	}
+
+	// Create a new resource
+	if err = r.newHostFirmwareSettings(info, hfs); err != nil {
+		return errors.Wrap(err, "could not create hostFirmwareSettings resource")
+	}
+
+	if schema != nil && len(schema) > 0 {
+
+		firmwareSchema, err := r.getFirmwareSchema(info, schema)
+		if err != nil {
+			return errors.Wrap(err, "could not get/create firmware schema in cluster")
+		}
+
+		// Set hostFirmwareSetting to use this schema
+		hfs.Status.FirmwareSchema = &metal3v1alpha1.SchemaReference{
+			Namespace: firmwareSchema.ObjectMeta.Namespace,
+			Name:      firmwareSchema.ObjectMeta.Name}
+
+		// copy schema reference to Annotation so it can be restored after pivoting
+		hfs.Annotations[metal3v1alpha1.FirmwareSchemaNamespaceAnnotation] = hfs.Status.FirmwareSchema.Namespace
+		hfs.Annotations[metal3v1alpha1.FirmwareSchemaNameAnnotation] = hfs.Status.FirmwareSchema.Name
+
+		if err = r.updateHostFirmwareSettingsFromCurrent(currentSettings, hfs, firmwareSchema); err != nil {
+			return errors.Wrap(err, "could not update hostFirmwareSettings")
+		}
+
+		// Set owner, if hfs is already an owner it will not be added again
+		if controllerutil.SetOwnerReference(hfs, firmwareSchema, r.Scheme()); err != nil {
+			return errors.Wrap(err, "could not set owner of firmwareSchema")
+		}
+
+		if err = r.Status().Update(context.TODO(), firmwareSchema); err != nil {
+			return errors.Wrap(err, "could not update firmwareSchema")
+		}
+	} else {
+		if err = r.updateHostFirmwareSettingsFromCurrent(currentSettings, hfs, nil); err != nil {
+			return errors.Wrap(err, "could not update hostFirmwareSettings")
+		}
+		info.log.Info("updated hostFirmwareSettings settings without schema")
+	}
+
+	return nil
+}
+
+// Create a HostFirmwareSettings resource
+func (r *BareMetalHostReconciler) newHostFirmwareSettings(info *reconcileInfo, hfs *metal3v1alpha1.HostFirmwareSettings) (err error) {
+
+	// Use same name and namespace as host
+	hfs.ObjectMeta = metav1.ObjectMeta{
+		Name:      info.host.ObjectMeta.Name,
+		Namespace: info.host.ObjectMeta.Namespace}
+	hfs.Status.Settings = make(metal3v1alpha1.SettingsMap)
+	hfs.Spec.Settings = make(metal3v1alpha1.DesiredSettingsMap)
+	hfs.Annotations = make(map[string]string)
+	if err = r.Create(context.TODO(), hfs); err != nil {
+		return errors.Wrap(err, "could not create hostFirmwareSettings resource")
+	}
+	info.log.Info("created new hostFirmwareSettings resource")
+
+	return nil
+}
+
+// Update the HostFirmwareSettings resource using the settings and schema from provisioner
+func (r *BareMetalHostReconciler) updateHostFirmwareSettingsFromCurrent(settings metal3v1alpha1.SettingsMap, hfs *metal3v1alpha1.HostFirmwareSettings, schema *metal3v1alpha1.FirmwareSchema) (err error) {
+
+	// if no schema provided, get the one referenced by hostFirmwareSettings if available
+	if schema == nil && hfs.Status.FirmwareSchema != nil {
+		schema = &metal3v1alpha1.FirmwareSchema{}
+		if r.Get(context.TODO(), client.ObjectKey{
+			Namespace: hfs.Status.FirmwareSchema.Namespace,
+			Name:      hfs.Status.FirmwareSchema.Name}, schema) != nil {
+			schema = nil
+		}
+	}
+
+	// Update Spec and Status
+	for k, v := range settings {
+		// Some vendors include encrypted password fields, don't add these
+		if strings.Contains(k, "Password") {
+			continue
+		}
+		hfs.Status.Settings[k] = v
+
+		// Don't include setting in Spec if cannot be changed
+		if schema != nil {
+			if schemaSetting, ok := schema.Spec.Schema[k]; ok {
+				if (schemaSetting.ReadOnly != nil && *schemaSetting.ReadOnly == true) ||
+					(schemaSetting.Unique != nil && *schemaSetting.Unique == true) {
+					continue
+				}
+			}
+		}
+		// Copy to Spec only if doesn't exist as setting may have been set by user
+		if _, ok := hfs.Spec.Settings[k]; !ok {
+			hfs.Spec.Settings[k] = intstr.FromString(v)
+		}
+	}
+
+	if err = r.Update(context.TODO(), hfs); err != nil {
+		return errors.Wrap(err, "could not update host firmware settings")
+	}
+
+	return nil
+}
+
+// Get a firmware schema that matches the host vendor or create one if it doesn't exist
+func (r *BareMetalHostReconciler) getFirmwareSchema(info *reconcileInfo, schema map[string]metal3v1alpha1.SettingSchema) (fSchema *metal3v1alpha1.FirmwareSchema, err error) {
+
+	info.log.Info("getting firmwareSchema")
+
+	schemaName := GetSchemaName(schema)
+	firmwareSchema := &metal3v1alpha1.FirmwareSchema{}
+
+	// If a schema exists that matches, use that, otherwise create a new one
+	if err = r.Get(context.TODO(), client.ObjectKey{Namespace: info.host.ObjectMeta.Namespace, Name: schemaName},
+		firmwareSchema); err == nil {
+
+		info.log.Info("found existing firmwareSchema resource")
+
+		return firmwareSchema, nil
+	}
+	if !k8serrors.IsNotFound(err) {
+		// Error reading the object
+		return nil, err
+
+	}
+
+	newFirmwareSchema := &metal3v1alpha1.FirmwareSchema{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      schemaName,
+			Namespace: info.host.ObjectMeta.Namespace,
+		},
+	}
+	if info.host.Status.HardwareDetails != nil {
+		newFirmwareSchema.Spec.HardwareVendor = info.host.Status.HardwareDetails.SystemVendor.Manufacturer
+		newFirmwareSchema.Spec.HardwareModel = info.host.Status.HardwareDetails.SystemVendor.ProductName
+	}
+	// Copy in the schema from provisioner
+	newFirmwareSchema.Spec.Schema = make(map[string]metal3v1alpha1.SettingSchema)
+	for k, v := range schema {
+		newFirmwareSchema.Spec.Schema[k] = v
+	}
+
+	// create the firmwareSchema
+	if err = r.Create(context.TODO(), newFirmwareSchema); err != nil {
+		return nil, err
+	}
+	info.log.Info("created new firmwareSchema resource")
+
+	return newFirmwareSchema, nil
 }
 
 func (r *BareMetalHostReconciler) saveHostStatus(host *metal3v1alpha1.BareMetalHost) error {

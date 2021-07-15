@@ -1,54 +1,19 @@
 package controllers
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	metal3v1alpha1 "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
 )
 
 // hostConfigData is an implementation of host configuration data interface.
 // Object is able to retrive data from secrets referenced in a host spec
 type hostConfigData struct {
-	host      *metal3v1alpha1.BareMetalHost
-	log       logr.Logger
-	client    client.Client
-	apiReader client.Reader
-}
-
-// Generic method for retrieving a secret. If the secret is not found in the
-// filtered cache, then the object is retrieved directly from the API
-func getSecret(client client.Client, apiReader client.Reader, secretKey types.NamespacedName) (secret *corev1.Secret, err error) {
-
-	secret = &corev1.Secret{}
-
-	// Look for secret in the filtered cache
-	err = client.Get(context.TODO(), secretKey, secret)
-	if err == nil {
-		return secret, nil
-	}
-	if !k8serrors.IsNotFound(err) {
-		return nil, err
-	}
-
-	// Secret not in cache; check API directly for unlabelled Secret
-	err = apiReader.Get(context.TODO(), secretKey, secret)
-	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			return nil, err
-		}
-		return nil, err
-	}
-
-	return secret, nil
+	host          *metal3v1alpha1.BareMetalHost
+	log           logr.Logger
+	secretManager secretutils.SecretManager
 }
 
 // Generic method for data extraction from a Secret. Function uses dataKey
@@ -60,19 +25,9 @@ func (hcd *hostConfigData) getSecretData(name, namespace, dataKey string) (strin
 		Namespace: namespace,
 	}
 
-	secret, err := getSecret(hcd.client, hcd.apiReader, key)
+	secret, err := hcd.secretManager.ObtainSecret(key)
 	if err != nil {
-		return "", errors.Wrap(err, fmt.Sprintf("failed to fetch user data from secret %s defined in namespace %s", name, namespace))
-	}
-
-	if !metav1.HasLabel(secret.ObjectMeta, LabelEnvironmentName) {
-		hcd.log.Info("updating secret environment label", "secret", secret.Name, "namespace", secret.Namespace)
-		metav1.SetMetaDataLabel(&secret.ObjectMeta, LabelEnvironmentName, LabelEnvironmentValue)
-
-		err = hcd.client.Update(context.TODO(), secret)
-		if err != nil {
-			return "", errors.Wrap(err, fmt.Sprintf("failed to updated secret %s defined in namespace %s", name, namespace))
-		}
+		return "", err
 	}
 
 	data, ok := secret.Data[dataKey]

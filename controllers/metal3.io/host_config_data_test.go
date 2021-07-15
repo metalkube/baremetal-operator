@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	metal3v1alpha1 "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
+	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -66,11 +67,11 @@ func TestLabelSecrets(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			host := newHost("host", tc.hostSpec)
 			c := fakeclient.NewClientBuilder().Build()
+			baselog := ctrl.Log.WithName("controllers").WithName("BareMetalHost")
 			hcd := &hostConfigData{
-				host:      host,
-				log:       ctrl.Log.WithName("controllers").WithName("BareMetalHost").WithName("host_config_data"),
-				client:    c,
-				apiReader: c,
+				host:          host,
+				log:           baselog.WithName("host_config_data"),
+				secretManager: secretutils.NewSecretManager(baselog, c, c),
 			}
 
 			secret := newSecret(tc.name, map[string]string{"value": "somedata"})
@@ -81,7 +82,7 @@ func TestLabelSecrets(t *testing.T) {
 
 			actualSecret := &corev1.Secret{}
 			c.Get(context.TODO(), types.NamespacedName{Name: tc.name, Namespace: namespace}, actualSecret)
-			assert.Equal(t, actualSecret.Labels[LabelEnvironmentName], LabelEnvironmentValue)
+			assert.Equal(t, "baremetal", actualSecret.Labels["environment.metal3.io"])
 		})
 	}
 
@@ -298,11 +299,11 @@ func TestProvisionWithHostConfig(t *testing.T) {
 			c.Create(goctx.TODO(), testBMCSecret)
 			c.Create(goctx.TODO(), tc.UserDataSecret)
 			c.Create(goctx.TODO(), tc.NetworkDataSecret)
+			baselog := ctrl.Log.WithName("controllers").WithName("BareMetalHost")
 			hcd := &hostConfigData{
-				host:      tc.Host,
-				log:       ctrl.Log.WithName("controllers").WithName("BareMetalHost").WithName("host_config_data"),
-				client:    c,
-				apiReader: c,
+				host:          tc.Host,
+				log:           baselog.WithName("host_config_data"),
+				secretManager: secretutils.NewSecretManager(baselog, c, c),
 			}
 
 			actualUserData, err := hcd.UserData()

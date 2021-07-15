@@ -22,8 +22,6 @@ import (
 	"os"
 	"runtime"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -33,12 +31,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	metal3iov1alpha1 "github.com/metal3-io/baremetal-operator/apis/metal3.io/v1alpha1"
-	controllers "github.com/metal3-io/baremetal-operator/controllers/metal3.io"
 	metal3iocontroller "github.com/metal3-io/baremetal-operator/controllers/metal3.io"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/demo"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/fixture"
 	"github.com/metal3-io/baremetal-operator/pkg/provisioner/ironic"
+	"github.com/metal3-io/baremetal-operator/pkg/secretutils"
 	"github.com/metal3-io/baremetal-operator/pkg/version"
 	// +kubebuilder:scaffold:imports
 )
@@ -123,11 +121,7 @@ func main() {
 		HealthProbeBindAddress:  healthAddr,
 
 		NewCache: cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&corev1.Secret{}: {
-					Label: labels.SelectorFromSet(labels.Set{controllers.LabelEnvironmentName: controllers.LabelEnvironmentValue}),
-				},
-			},
+			SelectorsByObject: secretutils.AddSecretSelector(nil),
 		}),
 	})
 	if err != nil {

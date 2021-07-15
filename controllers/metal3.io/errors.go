@@ -37,17 +37,6 @@ func (e ResolveBMCSecretRefError) Error() string {
 		e.message)
 }
 
-// SaveBMCSecretOwnerError is returned when we
-// fail to set the owner of a secret
-type SaveBMCSecretOwnerError struct {
-	message string
-}
-
-func (e SaveBMCSecretOwnerError) Error() string {
-	return fmt.Sprintf("Failed to set owner of BMC secret %s",
-		e.message)
-}
-
 // NoDataInSecretError is returned when host configuration
 // data were not found in referenced secret
 type NoDataInSecretError struct {

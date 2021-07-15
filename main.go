@@ -76,6 +76,13 @@ func setupChecks(mgr ctrl.Manager) {
 	}
 }
 
+func setupWebhooks(mgr ctrl.Manager) {
+	if err := (&metal3iov1alpha1.BareMetalHost{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "BareMetalHost")
+		os.Exit(1)
+	}
+}
+
 func main() {
 	var watchNamespace string
 	var metricsAddr string
@@ -83,6 +90,7 @@ func main() {
 	var devLogging bool
 	var runInTestMode bool
 	var runInDemoMode bool
+	var webhookPort int
 
 	// From CAPI point of view, BMO should be able to watch all namespaces
 	// in case of a deployment that is not multi-tenant. If the deployment
@@ -101,11 +109,15 @@ func main() {
 		"use the demo provisioner to set host states")
 	flag.StringVar(&healthAddr, "health-addr", ":9440",
 		"The address the health endpoint binds to.")
+	flag.IntVar(&webhookPort, "webhook-port", 9443,
+		"Webhook Server port (set to 0 to disable)")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(devLogging)))
 
 	printVersion()
+
+	enableWebhook := webhookPort != 0
 
 	leaderElectionNamespace := os.Getenv("POD_NAMESPACE")
 	if leaderElectionNamespace == "" {
@@ -115,7 +127,7 @@ func main() {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		MetricsBindAddress:      metricsAddr,
-		Port:                    0, // Add flag with default of 9443 when adding webhooks
+		Port:                    webhookPort,
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        "baremetal-operator",
 		LeaderElectionNamespace: leaderElectionNamespace,
@@ -157,6 +169,10 @@ func main() {
 	}
 
 	setupChecks(mgr)
+
+	if enableWebhook {
+		setupWebhooks(mgr)
+	}
 
 	// +kubebuilder:scaffold:builder
 

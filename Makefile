@@ -104,15 +104,15 @@ manager: generate lint ## Build manager binary
 
 .PHONY: run
 run: generate lint manifests ## Run against the configured Kubernetes cluster in ~/.kube/config
-	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev
+	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -webhook-port=0
 
 .PHONY: demo
 demo: generate lint manifests ## Run in demo mode
-	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -demo-mode
+	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -demo-mode -webhook-port=0
 
 .PHONY: run-test-mode
 run-test-mode: generate fmt-check lint manifests ## Run against the configured Kubernetes cluster in ~/.kube/config
-	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -test-mode
+	go run -ldflags $(LDFLAGS) ./main.go -namespace=$(RUN_NAMESPACE) -dev -test-mode -webhook-port=0
 
 .PHONY: install
 install: manifests ## Install CRDs into a cluster
@@ -132,7 +132,7 @@ tools/bin/controller-gen: go.mod
 
 .PHONY: manifests
 manifests: tools/bin/controller-gen ## Generate manifests e.g. CRD, RBAC etc.
-	cd apis; ../$< $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=../config/crd/bases
+	cd apis; ../$< $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:webhook:dir=../config/webhook/ output:crd:artifacts:config=../config/crd/bases
 	$< rbac:roleName=manager-role paths="./..." output:rbac:artifacts:config=config/rbac
 	$(KUSTOMIZE) build config/default > config/render/capm3.yaml
 

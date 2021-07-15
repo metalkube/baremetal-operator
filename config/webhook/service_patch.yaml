@@ -10,3 +10,4 @@ spec:
       targetPort: 9443
   selector:
     control-plane: controller-manager
+    webhook: metal3-io-v1alpha1-baremetalhost

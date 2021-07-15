@@ -19,14 +19,37 @@ func TestEmpty(t *testing.T) {
 	nodeUUID := "33ce8659-7400-4c68-9535-d10766f07a58"
 
 	cases := []struct {
-		name     string
-		hostData provisioner.HostConfigData
-		expected nodes.ConfigDrive
+		name       string
+		hostData   provisioner.HostConfigData
+		diskFormat string
+		expected   nodes.ConfigDrive
 	}{
 		{
-			name:     "empty",
+			name:     "default",
 			hostData: fixture.NewHostConfigData("", "", ""),
-			expected: nodes.ConfigDrive{},
+			expected: nodes.ConfigDrive{
+				MetaData: map[string]interface{}{
+					"local-hostname":   "myhost",
+					"local_hostname":   "myhost",
+					"metal3-name":      "myhost",
+					"metal3-namespace": "myns",
+					"name":             "myhost",
+				},
+			},
+		},
+		{
+			name:       "default with disk format",
+			hostData:   fixture.NewHostConfigData("", "", ""),
+			diskFormat: "qcow2",
+			expected: nodes.ConfigDrive{
+				MetaData: map[string]interface{}{
+					"local-hostname":   "myhost",
+					"local_hostname":   "myhost",
+					"metal3-name":      "myhost",
+					"metal3-namespace": "myns",
+					"name":             "myhost",
+				},
+			},
 		},
 		{
 			name:     "everything",
@@ -90,6 +113,12 @@ func TestEmpty(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "live ISO",
+			hostData:   fixture.NewHostConfigData("", "", ""),
+			diskFormat: "live-iso",
+			expected:   nodes.ConfigDrive{},
+		},
 	}
 
 	for _, tc := range cases {
@@ -118,9 +147,18 @@ func TestEmpty(t *testing.T) {
 				t.Fatalf("could not create provisioner: %s", err)
 			}
 
+			var diskFormat *string
+			if tc.diskFormat != "" {
+				diskFormat = &tc.diskFormat
+			}
+
 			result, err := prov.getConfigDrive(provisioner.ProvisionData{
 				HostConfig: tc.hostData,
 				BootMode:   v1alpha1.DefaultBootMode,
+				Image: v1alpha1.Image{
+					URL:        "http://image",
+					DiskFormat: diskFormat,
+				},
 			})
 
 			if len(tc.expected.MetaData) > 0 {

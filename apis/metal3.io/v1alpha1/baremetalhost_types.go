@@ -438,6 +438,10 @@ type Image struct {
 	DiskFormat *string `json:"format,omitempty"`
 }
 
+func (image *Image) IsLiveISO() bool {
+	return image != nil && image.DiskFormat != nil && *image.DiskFormat == "live-iso"
+}
+
 // Custom deploy is a description of a customized deploy process.
 type CustomDeploy struct {
 	// Custom deploy method name.

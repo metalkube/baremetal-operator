@@ -191,27 +191,23 @@ func TestBuildTargetRAIDCfg(t *testing.T) {
 func TestBuildRAIDCleanSteps(t *testing.T) {
 	cases := []struct {
 		name          string
-		raid          *metal3v1alpha1.RAIDConfig
+		raidInterface string
+		target        *metal3v1alpha1.RAIDConfig
+		existed       *metal3v1alpha1.RAIDConfig
 		expected      []nodes.CleanStep
-		expectedError string
+		expectedError bool
 	}{
 		{
-			name: "hardware raid",
-			raid: &metal3v1alpha1.RAIDConfig{
+			name:          "configure hardware RAID",
+			raidInterface: "irmc",
+			target: &metal3v1alpha1.RAIDConfig{
 				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
 					{
 						Name:  "root",
 						Level: "1",
 					},
-					{
-						Name:  "v1",
-						Level: "1",
-					},
 				},
 				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
 					{
 						Level: "1",
 					},
@@ -229,12 +225,56 @@ func TestBuildRAIDCleanSteps(t *testing.T) {
 			},
 		},
 		{
-			name: "software raid",
-			raid: &metal3v1alpha1.RAIDConfig{
+			name:          "have same hardware RAID",
+			raidInterface: "irmc",
+			target: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
+					{
+						Name:  "root",
+						Level: "1",
+					},
+				},
 				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
 					{
 						Level: "1",
 					},
+				},
+			},
+			existed: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
+					{
+						Name:  "root",
+						Level: "1",
+					},
+				},
+			},
+		},
+		{
+			name:          "clear hardware RAID",
+			raidInterface: "irmc",
+			target: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{},
+			},
+			existed: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
+					{
+						Name:  "root",
+						Level: "1",
+					},
+				},
+			},
+			expected: []nodes.CleanStep{
+				{
+					Interface: "raid",
+					Step:      "delete_configuration",
+				},
+			},
+		},
+		{
+			name:          "configure software RAID",
+			raidInterface: "agent",
+			target: &metal3v1alpha1.RAIDConfig{
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
 					{
 						Level: "1",
 					},
@@ -256,38 +296,58 @@ func TestBuildRAIDCleanSteps(t *testing.T) {
 			},
 		},
 		{
-			name: "raid is nil",
-			raid: nil,
+			name:          "have same software RAID",
+			raidInterface: "agent",
+			target: &metal3v1alpha1.RAIDConfig{
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
+					{
+						Level: "1",
+					},
+				},
+			},
+			existed: &metal3v1alpha1.RAIDConfig{
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
+					{
+						Level: "1",
+					},
+				},
+			},
 			expected: []nodes.CleanStep{
 				{
 					Interface: "raid",
 					Step:      "delete_configuration",
 				},
-			},
-		},
-		{
-			name: "volumes is nil",
-			raid: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: nil,
-				SoftwareRAIDVolumes: nil,
-			},
-			expected: []nodes.CleanStep{
+				{
+					Interface: "deploy",
+					Step:      "erase_devices_metadata",
+				},
 				{
 					Interface: "raid",
-					Step:      "delete_configuration",
+					Step:      "create_configuration",
 				},
 			},
 		},
 		{
-			name: "volumes is empty",
-			raid: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{},
+			name:          "clear software RAID",
+			raidInterface: "agent",
+			target: &metal3v1alpha1.RAIDConfig{
 				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{},
 			},
+			existed: &metal3v1alpha1.RAIDConfig{
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
+					{
+						Level: "1",
+					},
+				},
+			},
 			expected: []nodes.CleanStep{
 				{
 					Interface: "raid",
 					Step:      "delete_configuration",
+				},
+				{
+					Interface: "deploy",
+					Step:      "erase_devices_metadata",
 				},
 			},
 		},
@@ -295,9 +355,107 @@ func TestBuildRAIDCleanSteps(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			step := BuildRAIDCleanSteps(c.raid)
+			step, err := BuildRAIDCleanSteps(c.raidInterface, c.target, c.existed)
 			if !reflect.DeepEqual(c.expected, step) {
 				t.Errorf("expected: %v, got: %v", c.expected, step)
+			}
+			if (err != nil) != c.expectedError {
+				t.Errorf("got unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestCheckRAIDConfigure(t *testing.T) {
+	cases := []struct {
+		raidInterface string
+		RAID          *metal3v1alpha1.RAIDConfig
+		expectedError bool
+	}{
+		{
+			raidInterface: "no-raid",
+		},
+		{
+			raidInterface: "no-raid",
+			RAID:          &metal3v1alpha1.RAIDConfig{},
+		},
+		{
+			raidInterface: "no-raid",
+			RAID: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
+					{
+						Name:  "root",
+						Level: "1",
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			raidInterface: "agent",
+		},
+		{
+			raidInterface: "agent",
+			RAID:          &metal3v1alpha1.RAIDConfig{},
+		},
+		{
+			raidInterface: "agent",
+			RAID: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
+					{
+						Name:  "root",
+						Level: "1",
+					},
+				},
+			},
+			expectedError: true,
+		},
+		{
+			raidInterface: "agent",
+			RAID: &metal3v1alpha1.RAIDConfig{
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
+					{
+						Level: "1",
+					},
+				},
+			},
+		},
+		{
+			raidInterface: "hardware",
+		},
+		{
+			raidInterface: "hardware",
+			RAID:          &metal3v1alpha1.RAIDConfig{},
+		},
+		{
+			raidInterface: "hardware",
+			RAID: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
+					{
+						Name:  "root",
+						Level: "1",
+					},
+				},
+			},
+		},
+		{
+			raidInterface: "hardware",
+			RAID: &metal3v1alpha1.RAIDConfig{
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
+					{
+						Level: "1",
+					},
+				},
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.raidInterface, func(t *testing.T) {
+			err := checkRAIDConfigure(c.raidInterface, c.RAID)
+			if (err != nil) != c.expectedError {
+				t.Errorf("Got unexpected error: %v", err)
 			}
 		})
 	}

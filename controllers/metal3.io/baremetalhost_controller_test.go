@@ -80,6 +80,18 @@ func newDefaultNamedHost(name string, t *testing.T) *metal3v1alpha1.BareMetalHos
 			Address:         "ipmi://192.168.122.1:6233",
 			CredentialsName: defaultSecretName,
 		},
+		HardwareProfile: "libvirt",
+		RootDeviceHints: &metal3v1alpha1.RootDeviceHints{
+			DeviceName:         "userd_devicename",
+			HCTL:               "1:2:3:4",
+			Model:              "userd_model",
+			Vendor:             "userd_vendor",
+			SerialNumber:       "userd_serial",
+			MinSizeGigabytes:   40,
+			WWN:                "userd_wwn",
+			WWNWithExtension:   "userd_with_extension",
+			WWNVendorExtension: "userd_vendor_extension",
+		},
 	}
 	t.Logf("newNamedHost(%s)", name)
 	return newHost(name, spec)
@@ -1747,16 +1759,6 @@ func TestUpdateRAID(t *testing.T) {
 				WWNWithExtension:   "userd_with_extension",
 				WWNVendorExtension: "userd_vendor_extension",
 			},
-			RAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Name: "root",
-					},
-					{
-						Name: "v1",
-					},
-				},
-			},
 		},
 		Status: metal3v1alpha1.BareMetalHostStatus{
 			Provisioning: metal3v1alpha1.ProvisionStatus{
@@ -1774,138 +1776,33 @@ func TestUpdateRAID(t *testing.T) {
 			},
 		},
 	}
+
 	cases := []struct {
-		name       string
-		specRAID   *metal3v1alpha1.RAIDConfig
-		statusRAID *metal3v1alpha1.RAIDConfig
-		dirty      bool
-		expected   *metal3v1alpha1.RAIDConfig
+		name     string
+		raid     *metal3v1alpha1.RAIDConfig
+		dirty    bool
+		expected *metal3v1alpha1.RAIDConfig
 	}{
 		{
-			name:       "not configured, not saved",
-			specRAID:   nil,
-			statusRAID: nil,
-			dirty:      false,
-		},
-		{
-			name:       "not configured, not saved",
-			specRAID:   &metal3v1alpha1.RAIDConfig{},
-			statusRAID: &metal3v1alpha1.RAIDConfig{},
-			dirty:      false,
-			expected:   &metal3v1alpha1.RAIDConfig{},
-		},
-		{
-			name:       "not configured, not saved",
-			specRAID:   &metal3v1alpha1.RAIDConfig{},
-			statusRAID: nil,
-			dirty:      true,
-			expected:   &metal3v1alpha1.RAIDConfig{},
-		},
-		{
-			name:       "not configured, not saved",
-			specRAID:   nil,
-			statusRAID: &metal3v1alpha1.RAIDConfig{},
-			dirty:      true,
-			expected:   nil,
-		},
-		{
-			name: "HardwareRAIDVolumes configured, not saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: nil,
-			dirty:      true,
+			name:  "keep current hardware RAID, clear current software RAID",
+			raid:  nil,
+			dirty: true,
 			expected: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{},
 			},
 		},
 		{
-			name: "SoftwareRAIDVolumes configured, not saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: nil,
-			dirty:      true,
-			expected: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-		},
-		{
-			name: "both configured, not saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: nil,
-			dirty:      true,
-			expected: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-		},
-		{
-			name: "HardwareRAIDVolumes configured, HardwareRAIDVolumes saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
+			name:  "keep current hardware RAID, clear current software RAID",
+			raid:  &metal3v1alpha1.RAIDConfig{},
 			dirty: false,
 			expected: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{},
 			},
 		},
 		{
-			name: "HardwareRAIDVolumes configured, SoftwareRAIDVolumes saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
+			name: "Configure hardwareRAIDVolumes",
+			raid: &metal3v1alpha1.RAIDConfig{
 				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
 					{
 						Level: "1",
 					},
@@ -1921,15 +1818,8 @@ func TestUpdateRAID(t *testing.T) {
 			},
 		},
 		{
-			name: "HardwareRAIDVolumes configured, both saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
+			name: "Configure hardwareRAIDVolumes",
+			raid: &metal3v1alpha1.RAIDConfig{
 				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
 					{
 						Level: "1",
@@ -1951,70 +1841,29 @@ func TestUpdateRAID(t *testing.T) {
 			},
 		},
 		{
-			name: "SoftwareRAIDVolumes configured, HardwareRAIDVolumes saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+			name: "Clear hardwareRAIDVolumes",
+			raid: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{},
 			},
 			dirty: true,
 			expected: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{},
 			},
 		},
 		{
-			name: "SoftwareRAIDVolumes configured, SoftwareRAIDVolumes saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+			name: "Clear hardwareRAIDVolumes",
+			raid: &metal3v1alpha1.RAIDConfig{
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{},
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{},
 			},
 			dirty: false,
 			expected: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{},
 			},
 		},
 		{
-			name: "SoftwareRAIDVolumes configured, both saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+			name: "Configure SoftwareRAIDVolumes",
+			raid: &metal3v1alpha1.RAIDConfig{
 				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
 					{
 						Level: "1",
@@ -2031,108 +1880,24 @@ func TestUpdateRAID(t *testing.T) {
 			},
 		},
 		{
-			name: "both configured, HardwareRAIDVolumes saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			dirty: false,
-			expected: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-		},
-		{
-			name: "both configured, SoftwareRAIDVolumes saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+			name: "Clear softwareRAIDVolumes",
+			raid: &metal3v1alpha1.RAIDConfig{
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{},
 			},
 			dirty: true,
 			expected: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-		},
-		{
-			name: "both configured, both saved",
-			specRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			statusRAID: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
-			},
-			dirty: false,
-			expected: &metal3v1alpha1.RAIDConfig{
-				HardwareRAIDVolumes: []metal3v1alpha1.HardwareRAIDVolume{
-					{
-						Level: "1",
-					},
-				},
+				SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{},
 			},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			host.Spec.RAID = c.specRAID
-			host.Status.Provisioning.RAID = c.statusRAID
+			host.Spec.RAID = c.raid
 			dirty, _ := saveHostProvisioningSettings(&host)
 			assert.Equal(t, c.dirty, dirty)
 			assert.Equal(t, c.expected, host.Status.Provisioning.RAID)
+			dirty, _, _ = getHostProvisioningSettings(&host)
+			assert.Equal(t, false, dirty)
 		})
 	}
 }

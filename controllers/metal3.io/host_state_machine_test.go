@@ -1003,6 +1003,9 @@ func host(state metal3v1alpha1.ProvisioningState) *hostBuilder {
 					Image: v1alpha1.Image{
 						URL: "", //needs provisioning
 					},
+					RAID: &metal3v1alpha1.RAIDConfig{
+						SoftwareRAIDVolumes: []metal3v1alpha1.SoftwareRAIDVolume{},
+					},
 				},
 				GoodCredentials:   creds,
 				TriedCredentials:  creds,

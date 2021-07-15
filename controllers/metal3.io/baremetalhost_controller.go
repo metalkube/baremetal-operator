@@ -775,12 +775,18 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 	}
 
 	prepareData := provisioner.PrepareData{
-		RAIDConfig:      newStatus.Provisioning.RAID.DeepCopy(),
-		RootDeviceHints: newStatus.Provisioning.RootDeviceHints.DeepCopy(),
-		FirmwareConfig:  newStatus.Provisioning.Firmware.DeepCopy(),
+		TargetRAIDConfig:  newStatus.Provisioning.RAID.DeepCopy(),
+		ExistedRAIDConfig: info.host.Status.Provisioning.RAID,
+		RootDeviceHints:   newStatus.Provisioning.RootDeviceHints.DeepCopy(),
+		FirmwareConfig:    newStatus.Provisioning.Firmware.DeepCopy(),
 	}
-	provResult, started, err := prov.Prepare(prepareData,
-		dirty || info.host.Status.ErrorType == metal3v1alpha1.PreparationError)
+	// When manual cleaning fails, we think that the existed RAID configuration
+	// is invalid and needs to be reconfigured.
+	if info.host.Status.ErrorType == metal3v1alpha1.PreparationError {
+		prepareData.ExistedRAIDConfig = nil
+		dirty = true
+	}
+	provResult, started, err := prov.Prepare(prepareData, dirty)
 	if err != nil {
 		return actionError{errors.Wrap(err, "error preparing host")}
 	}
@@ -890,7 +896,10 @@ func (r *BareMetalHostReconciler) actionProvisioning(prov provisioner.Provisione
 // fields of a host.
 func clearHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) {
 	host.Status.Provisioning.RootDeviceHints = nil
-	host.Status.Provisioning.RAID = nil
+	// Only clear software raid volumes
+	if host.Status.Provisioning.RAID != nil {
+		host.Status.Provisioning.RAID.SoftwareRAIDVolumes = nil
+	}
 	host.Status.Provisioning.Firmware = nil
 }
 
@@ -1115,41 +1124,28 @@ func saveHostProvisioningSettings(host *metal3v1alpha1.BareMetalHost) (dirty boo
 	}
 
 	// Copy RAID settings
-	if host.Spec.RAID != host.Status.Provisioning.RAID {
-		// If RAID settings is nil, remove saved settings,
-		// else check hardware RAID and software RAID.
-		if host.Spec.RAID == nil {
-			host.Status.Provisioning.RAID = nil
-			dirty = true
-		} else {
-			if host.Status.Provisioning.RAID == nil {
-				host.Status.Provisioning.RAID = &metal3v1alpha1.RAIDConfig{}
-				dirty = true
-			}
-			// If HardwareRAIDVolumes isn't nil, we will ignore SoftwareRAIDVolumes.
-			if len(host.Spec.RAID.HardwareRAIDVolumes) != 0 {
-				// If software RAID has been saved, remove it.
-				if len(host.Status.Provisioning.RAID.SoftwareRAIDVolumes) != 0 {
-					host.Status.Provisioning.RAID.SoftwareRAIDVolumes = nil
-				}
-				// Compare hardware RAID settings
-				if !reflect.DeepEqual(host.Spec.RAID.HardwareRAIDVolumes, host.Status.Provisioning.RAID.HardwareRAIDVolumes) {
-					host.Status.Provisioning.RAID.HardwareRAIDVolumes = host.Spec.RAID.HardwareRAIDVolumes
-					dirty = true
-				}
-			} else {
-				// If hardware RAID has been saved, remove it.
-				if len(host.Status.Provisioning.RAID.HardwareRAIDVolumes) != 0 {
-					host.Status.Provisioning.RAID.HardwareRAIDVolumes = nil
-					dirty = true
-				}
-				// Compare software RAID settings
-				if !reflect.DeepEqual(host.Spec.RAID.SoftwareRAIDVolumes, host.Status.Provisioning.RAID.SoftwareRAIDVolumes) {
-					host.Status.Provisioning.RAID.SoftwareRAIDVolumes = host.Spec.RAID.SoftwareRAIDVolumes
-					dirty = true
-				}
-			}
+	specRAID := host.Spec.RAID.DeepCopy()
+	// If RAID configure is nil or empty, means that we need to keep the current hardware RAID configuration
+	// or clear current software RAID configuration
+	if specRAID == nil || reflect.DeepEqual(specRAID, &metal3v1alpha1.RAIDConfig{}) {
+		// Set the default value of RAID configure:
+		// {
+		//     HardwareRAIDVolumes: nil or Status.Provisioning.RAID.HardwareRAIDVolumes(not empty),
+		//     SoftwareRAIDVolume: [],
+		// }
+		specRAID = &metal3v1alpha1.RAIDConfig{}
+		if host.Status.Provisioning.RAID != nil && len(host.Status.Provisioning.RAID.HardwareRAIDVolumes) != 0 {
+			specRAID.HardwareRAIDVolumes = host.Status.Provisioning.RAID.DeepCopy().HardwareRAIDVolumes
 		}
+		specRAID.SoftwareRAIDVolumes = []metal3v1alpha1.SoftwareRAIDVolume{}
+	}
+	// If HardwareRAIDVolumes isn't nil, ignore SoftwareRAIDVolumes
+	if specRAID.HardwareRAIDVolumes != nil {
+		specRAID.SoftwareRAIDVolumes = nil
+	}
+	if !reflect.DeepEqual(host.Status.Provisioning.RAID, specRAID) {
+		host.Status.Provisioning.RAID = specRAID
+		dirty = true
 	}
 
 	// Copy BIOS settings
